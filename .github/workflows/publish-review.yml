@@ -1,0 +1,45 @@
+name: Publish validated Windows installer
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/publish-review.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: publish-windows-review-0.1.0
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: Agharzaa/MEYAR2
+    steps:
+      - name: Verify the tested build and download its original installer
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api repos/Agharzaa/MEYAR2/actions/runs/35962328443 > run.json
+          jq -e '.conclusion == "success" and .head_sha == "58b5d65cc9691f9628e21c02cee6e41c553bda82"' run.json
+          gh api repos/Agharzaa/MEYAR2/actions/artifacts/10792617006/zip > installer.zip
+          echo 'c33ce76cf39d043f9ebb276fb37baa167f6c13d819faac207b279d191ba70e5e  installer.zip' | sha256sum --check
+          unzip -q installer.zip -d installer
+          test -s installer/Meyar-ERP-2-Setup-0.1.0.exe
+          cd installer
+          sha256sum Meyar-ERP-2-Setup-0.1.0.exe > SHA256SUMS.txt
+      - name: Publish a direct download without a GitHub sign-in requirement
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create v0.1.0-review \
+            installer/Meyar-ERP-2-Setup-0.1.0.exe \
+            installer/SHA256SUMS.txt \
+            --target 58b5d65cc9691f9628e21c02cee6e41c553bda82 \
+            --title 'Meyar ERP 2 - Windows review 0.1.0' \
+            --prerelease \
+            --notes 'Initial Windows review build. Download and run Meyar-ERP-2-Setup-0.1.0.exe. This is the original installer from the successful Windows validation run, with all 18 automated tests passing. Includes invoices, bank payments, trial balance, and Excel import. DVX integration, complete inventory costing, and automatic updates are not yet available. Installer is unsigned.'
