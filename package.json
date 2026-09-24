@@ -16,13 +16,14 @@
     "build": "npm run typecheck && npm run build:main && vite build",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.main.json",
     "test": "npm run build:main && node --test dist/main/tests/*.test.js",
-    "start": "npm run build && electron .",
-    "dev": "npm run build:main && node scripts/dev.mjs",
+    "start": "npm run runtime:install && npm run build && electron .",
+    "dev": "npm run runtime:install && npm run build:main && node scripts/dev.mjs",
     "preview": "npm run build && node dist/main/scripts/preview.js",
     "dist:win": "npm run build && electron-builder --win nsis --x64 --publish never",
     "test:ui": "node --import tsx --test tests/ui.test.tsx",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "runtime:install": "install-electron"
   },
   "build": {
     "appId": "az.meyar.erp2",

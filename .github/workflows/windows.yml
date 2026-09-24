@@ -17,6 +17,8 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci
+      - name: Install the pinned Electron runtime
+        run: npm run runtime:install
       - run: npm run typecheck
       - run: npm test
       - run: npm run test:ui

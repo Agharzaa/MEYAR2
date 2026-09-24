@@ -25,3 +25,7 @@ ExcelJS-in istifadə etdiyi `uuid` paketinin auditdə görünən köhnə versiya
 - Köhnə məlumat bazasının köçürülməsi və real şirkətin paralel uçot sınağı aparılmayıb.
 
 Bu nəticələr yalnız yuxarıdakı əhatəni təsdiqləyir; proqramın bütün nəzərdə tutulan ERP funksiyalarının hazır olması barədə iddia deyil.
+
+## Windows yığımında tapılmış düzəliş
+
+İlk Windows yoxlamasında 18 test və Excel sınaqları keçdi. Electron 44 paketində runtime avtomatik endirilmədiyi üçün ayrıca `install-electron` addımı əlavə edildi; bu addım həm inkişaf/başlatma, həm də CI prosesində işləyir. Paket versiyası və yüklənən runtime lockfile/package.json ilə sabitdir.
