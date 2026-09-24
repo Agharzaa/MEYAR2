@@ -1,0 +1,94 @@
+{
+  "name": "meyar-erp-v2",
+  "productName": "Meyar ERP 2",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Meyar ERP — qaimə, bank və ikili yazılış əsasında uçot",
+  "author": "Ağarza Ağalarov",
+  "license": "UNLICENSED",
+  "type": "module",
+  "main": "dist/main/electron/main.js",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "build:main": "tsc -p tsconfig.main.json",
+    "build": "npm run typecheck && npm run build:main && vite build",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.main.json",
+    "test": "npm run build:main && node --test dist/main/tests/*.test.js",
+    "start": "npm run build && electron .",
+    "dev": "npm run build:main && node scripts/dev.mjs",
+    "preview": "npm run build && node dist/main/scripts/preview.js",
+    "dist:win": "npm run build && electron-builder --win nsis --x64 --publish never",
+    "test:ui": "node --import tsx --test tests/ui.test.tsx",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "build": {
+    "appId": "az.meyar.erp2",
+    "productName": "Meyar ERP 2",
+    "artifactName": "Meyar-ERP-2-Setup-${version}.${ext}",
+    "asar": true,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/main/core/**",
+      "dist/main/shared/**",
+      "dist/main/electron/**",
+      "dist/renderer/**",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "deleteAppDataOnUninstall": false
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Agharzaa",
+        "repo": "MEYAR2"
+      }
+    ]
+  },
+  "dependencies": {
+    "electron-updater": "6.8.9",
+    "exceljs": "4.4.0",
+    "lucide-react": "1.47.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@testing-library/react": "16.3.3",
+    "@testing-library/user-event": "14.6.7",
+    "@types/jsdom": "30.0.0",
+    "@types/node": "24.13.6",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.1",
+    "electron": "44.4.5",
+    "electron-builder": "26.15.3",
+    "jsdom": "30.1.1",
+    "prettier": "3.9.9",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2",
+    "vite": "8.3.0"
+  },
+  "overrides": {
+    "exceljs": {
+      "uuid": "11.1.1"
+    }
+  }
+}

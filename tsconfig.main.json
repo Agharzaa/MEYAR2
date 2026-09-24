@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "rootDir": ".",
+    "outDir": "dist/main",
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "types": ["node"]
+  },
+  "include": ["core", "shared", "electron", "tests", "scripts/preview.ts"],
+  "exclude": ["tests/ui.test.tsx", "tests/dom-setup.ts"]
+}
