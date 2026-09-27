@@ -1,14 +1,10 @@
-Meyar ERP 2 — 0.1.3
+Meyar ERP 2 — 0.1.4
 
-- Native titles identify the module and company in the taskbar and open-window strip.
-- Modules and invoice/payment editors now open in real, independent Windows windows.
-- Move, resize, minimize and switch between windows using the Windows taskbar or Alt-Tab.
-- Each module is pinned to its company. Saving data refreshes other open windows for that company.
-- Saving an invoice posts it to the ledger automatically in the same transaction.
-- Invoice version checks reject stale edits without overwriting newer postings.
-- Unsaved document windows ask before closing; entered fields remain when switching windows.
-- Yellow, cream and gray palette; 7:93 filter/table workspace with a 36 px filter minimum.
+- The logo, company selector and main module navigation appear only on the desktop.
+- Independent module windows start directly with their own compact toolbar, filters and table.
+- Removed header space is available to the document table. The 7:93 filter/table layout is preserved.
+- Existing native window controls, company isolation and automatic invoice posting are retained.
 
-Close the running application, download Meyar-ERP-2-Setup-0.1.3.exe and install.
+Close all Meyar windows, download Meyar-ERP-2-Setup-0.1.4.exe and install.
 The existing database stays in the same application data directory and is backed up before startup.
 This is an unsigned review build. Automatic updates are not enabled.

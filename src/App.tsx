@@ -195,7 +195,7 @@ export default function App({ nativeContext }: { nativeContext?: WindowContext }
     [loading, setLoading] = useState(true),
     [error, setError] = useState(''),
     [success, setSuccess] = useState(''),
-    [version, setVersion] = useState('0.1.3'),
+    [version, setVersion] = useState('0.1.4'),
     [reason, setReason] = useState(''),
     [closeDate, setCloseDate] = useState('');
   const activeWindow = windows[page] ?? initialWindow;
@@ -671,115 +671,123 @@ export default function App({ nativeContext }: { nativeContext?: WindowContext }
   }
   return (
     <div className={`app-shell ${nativeContext ? 'native-app' : ''}`}>
-      <header className="app-header">
-        <button className="brand-lockup" aria-label="Meyar iş masası" onClick={() => open('home')}>
-          <div className="brand-mark">M</div>
-          <b>
-            meyar<span>ERP</span>
-          </b>
-          <span className="version-badge">2</span>
-        </button>
-        <div className="header-divider" />
-        <div className="company-control">
-          <Building2 size={17} />
-          <select
-            aria-label="Aktiv şirkət"
-            value={state.company.id}
-            disabled={busy || loading || !!nativeContext?.companyId}
-            onChange={(e) => switchCompany(e.target.value)}
-          >
-            {state.companies.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-          <span className="company-tax">VÖEN {state.company.taxId}</span>
-          {nativeContext && !nativeContext.companyId && (
+      {(!nativeContext || page === 'home') && (
+        <>
+          <header className="app-header">
             <button
-              className="icon-button"
-              title="Yeni şirkət"
-              aria-label="Yeni şirkət"
-              disabled={busy || loading}
-              onClick={() => setModal({ kind: 'company' })}
+              className="brand-lockup"
+              aria-label="Meyar iş masası"
+              onClick={() => open('home')}
             >
-              <Plus size={17} />
+              <div className="brand-mark">M</div>
+              <b>
+                meyar<span>ERP</span>
+              </b>
+              <span className="version-badge">2</span>
             </button>
-          )}
-        </div>
-        <div className="header-right">
-          <span className="local-state">
-            <i />
-            {window.meyar ? 'Yerli baza' : 'Sınaq baxışı'}
-          </span>
-          <button
-            className="icon-button"
-            aria-label="Əməliyyat tarixçəsi"
-            title="Əməliyyat tarixçəsi"
-            onClick={() => open('audit')}
-          >
-            <Bell size={19} />
-          </button>
-          <button
-            className={`icon-button ${page === 'settings' ? 'selected' : ''}`}
-            aria-label="Şirkət və proqram"
-            title="Şirkət və proqram"
-            onClick={() => open('settings')}
-          >
-            <Settings2 size={19} />
-          </button>
-          <div className="avatar" title={state.company.name}>
-            {state.company.name.slice(0, 2).toLocaleUpperCase('az')}
-          </div>
-        </div>
-      </header>
-      <nav className="main-nav" aria-label="Əsas modullar">
-        {navigation('home')}
-        {navigation('purchase')}
-        {navigation('sale')}
-        <details className="nav-dropdown">
-          <summary className={`nav-item ${bankPage ? 'active' : ''}`}>
-            <Landmark size={17} />
-            Bank
-            <ChevronDown size={13} />
-          </summary>
-          <div
-            className="dropdown-menu"
-            onClick={(e) =>
-              (e.currentTarget.parentElement as HTMLDetailsElement).removeAttribute('open')
-            }
-          >
-            {navigation('bank-in')}
-            {navigation('bank-out')}
-          </div>
-        </details>
-        {navigation('trial', 'Dövriyyə balansı')}
-        <details className="nav-dropdown">
-          <summary className={`nav-item ${partnerPage || page === 'accounts' ? 'active' : ''}`}>
-            <FolderOpen size={17} />
-            Kitabçalar
-            <ChevronDown size={13} />
-          </summary>
-          <div
-            className="dropdown-menu"
-            onClick={(e) =>
-              (e.currentTarget.parentElement as HTMLDetailsElement).removeAttribute('open')
-            }
-          >
-            {navigation('partners')}
-            {navigation('receivables')}
-            {navigation('payables')}
-            {navigation('accounts')}
-          </div>
-        </details>
-        <button
-          className={`nav-item journal-nav ${page === 'ledger' ? 'active' : ''}`}
-          onClick={() => open('ledger')}
-        >
-          <ClipboardList size={17} />
-          Jurnal
-        </button>
-      </nav>
+            <div className="header-divider" />
+            <div className="company-control">
+              <Building2 size={17} />
+              <select
+                aria-label="Aktiv şirkət"
+                value={state.company.id}
+                disabled={busy || loading || !!nativeContext?.companyId}
+                onChange={(e) => switchCompany(e.target.value)}
+              >
+                {state.companies.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+              <span className="company-tax">VÖEN {state.company.taxId}</span>
+              {nativeContext && !nativeContext.companyId && (
+                <button
+                  className="icon-button"
+                  title="Yeni şirkət"
+                  aria-label="Yeni şirkət"
+                  disabled={busy || loading}
+                  onClick={() => setModal({ kind: 'company' })}
+                >
+                  <Plus size={17} />
+                </button>
+              )}
+            </div>
+            <div className="header-right">
+              <span className="local-state">
+                <i />
+                {window.meyar ? 'Yerli baza' : 'Sınaq baxışı'}
+              </span>
+              <button
+                className="icon-button"
+                aria-label="Əməliyyat tarixçəsi"
+                title="Əməliyyat tarixçəsi"
+                onClick={() => open('audit')}
+              >
+                <Bell size={19} />
+              </button>
+              <button
+                className={`icon-button ${page === 'settings' ? 'selected' : ''}`}
+                aria-label="Şirkət və proqram"
+                title="Şirkət və proqram"
+                onClick={() => open('settings')}
+              >
+                <Settings2 size={19} />
+              </button>
+              <div className="avatar" title={state.company.name}>
+                {state.company.name.slice(0, 2).toLocaleUpperCase('az')}
+              </div>
+            </div>
+          </header>
+          <nav className="main-nav" aria-label="Əsas modullar">
+            {navigation('home')}
+            {navigation('purchase')}
+            {navigation('sale')}
+            <details className="nav-dropdown">
+              <summary className={`nav-item ${bankPage ? 'active' : ''}`}>
+                <Landmark size={17} />
+                Bank
+                <ChevronDown size={13} />
+              </summary>
+              <div
+                className="dropdown-menu"
+                onClick={(e) =>
+                  (e.currentTarget.parentElement as HTMLDetailsElement).removeAttribute('open')
+                }
+              >
+                {navigation('bank-in')}
+                {navigation('bank-out')}
+              </div>
+            </details>
+            {navigation('trial', 'Dövriyyə balansı')}
+            <details className="nav-dropdown">
+              <summary className={`nav-item ${partnerPage || page === 'accounts' ? 'active' : ''}`}>
+                <FolderOpen size={17} />
+                Kitabçalar
+                <ChevronDown size={13} />
+              </summary>
+              <div
+                className="dropdown-menu"
+                onClick={(e) =>
+                  (e.currentTarget.parentElement as HTMLDetailsElement).removeAttribute('open')
+                }
+              >
+                {navigation('partners')}
+                {navigation('receivables')}
+                {navigation('payables')}
+                {navigation('accounts')}
+              </div>
+            </details>
+            <button
+              className={`nav-item journal-nav ${page === 'ledger' ? 'active' : ''}`}
+              onClick={() => open('ledger')}
+            >
+              <ClipboardList size={17} />
+              Jurnal
+            </button>
+          </nav>
+        </>
+      )}
       <main
         className={`main-content ${page === 'home' ? 'home-workspace' : 'window-workspace'}`}
         aria-busy={loading || busy}

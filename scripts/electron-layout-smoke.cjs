@@ -40,7 +40,7 @@ async function selectWindow(page, form) {
   await until(
     form
       ? "!!document.querySelector('form input')"
-      : "!!document.querySelector('.main-nav') && document.querySelector('main')?.getAttribute('aria-busy') === 'false'",
+      : "!!document.querySelector('.module-window') && document.querySelector('main')?.getAttribute('aria-busy') === 'false'",
   );
   return window;
 }
@@ -62,7 +62,7 @@ async function layout(name, width, height) {
   const dimensions = await evaluate(`(() => {
     const rect = selector => { const r = document.querySelector(selector).getBoundingClientRect(); return { x:r.x, y:r.y, width:r.width, height:r.height, right:r.right, bottom:r.bottom }; };
     return { workspace:rect('.module-workspace'), filter:rect('.filter-bar'), body:rect('.window-body'), table:rect('.data-table'), footer:rect('.workspace-footer'), viewport:{width:innerWidth,height:innerHeight}, scrollWidth:document.documentElement.scrollWidth,
-      headerColor:getComputedStyle(document.querySelector('.app-header')).backgroundColor,
+      heading:rect('.page-heading'), repeatedHeader:!!document.querySelector('.app-header'), repeatedNavigation:!!document.querySelector('.main-nav'),
       controls:[...document.querySelectorAll('.filter-bar input, .filter-bar select, .filter-bar button')].map(el=>({label:el.getAttribute('aria-label')||el.textContent, rect:{top:el.getBoundingClientRect().top,bottom:el.getBoundingClientRect().bottom}})) };
   })()`);
   assert.ok(dimensions.table.height > 300, 'Table has adequate usable height');
@@ -90,7 +90,21 @@ async function layout(name, width, height) {
       `Filter control clipped: ${control.label}`,
     );
   }
-  assert.equal(dimensions.headerColor, 'rgb(255, 229, 119)', 'Classic yellow header');
+  assert.equal(
+    dimensions.repeatedHeader,
+    false,
+    'Module does not repeat the company and logo header',
+  );
+  assert.equal(
+    dimensions.repeatedNavigation,
+    false,
+    'Module does not repeat the desktop navigation',
+  );
+  assert.equal(
+    dimensions.heading.y,
+    0,
+    'Module toolbar starts at the top without a blank header gap',
+  );
   await writeFile(
     path.join(root, 'screenshots', `${name}.png`),
     (await window.webContents.capturePage()).toPNG(),
@@ -149,12 +163,12 @@ app
       path.join(root, 'dist/main/electron/preload.cjs'),
     );
     manager.register();
-    manager.handle('meyar:version', () => '0.1.3-native-test');
+    manager.handle('meyar:version', () => '0.1.4-native-test');
     await mkdir(path.join(root, 'screenshots'), { recursive: true });
     const home = await manager.create({ page: 'home', companyId: '' });
     window = home;
     await until(
-      "!!document.querySelector('.main-nav') && document.querySelector('main')?.getAttribute('aria-busy') === 'false'",
+      "!!document.querySelector('.module-window') && document.querySelector('main')?.getAttribute('aria-busy') === 'false'",
     );
     // Select a known company; root state defaults to alphabetical first company.
     await evaluate(
@@ -162,6 +176,11 @@ app
     );
     await until(
       `document.querySelector('.app-header select')?.value === ${JSON.stringify(companyId)} && document.querySelector('main')?.getAttribute('aria-busy') === 'false'`,
+    );
+    assert.equal(
+      await evaluate("getComputedStyle(document.querySelector('.app-header')).backgroundColor"),
+      'rgb(255, 229, 119)',
+      'Desktop keeps its yellow header and module navigation',
     );
     await click('Gələn qaimələr');
     const purchase = await selectWindow('purchase');
@@ -178,6 +197,7 @@ app
     // Reopening a module focuses its existing window and preserves local filters.
     const same = await manager.create({ page: 'purchase', companyId });
     assert.equal(same.id, purchase.id);
+    window = home;
     await click('Dövriyyə balansı');
     const trial = await selectWindow('trial');
     results.trial = await layout('trial-1440', 1440, 940);
