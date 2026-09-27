@@ -1,12 +1,23 @@
 import { useEffect, useRef, useState } from 'react';
-import { X } from 'lucide-react';
+import { X, Minus, Maximize2 } from 'lucide-react';
 import type { Command, Invoice, State } from '../shared/types';
-import { windowTitles, type OpenWindow, type WindowContext } from '../shared/windows';
+import {
+  windowTitles,
+  type OpenWindow,
+  type WindowContext,
+  type WindowBridge,
+} from '../shared/windows';
 import { api } from './api';
 import { InvoiceForm, PaymentForm, IdentityForm } from './forms';
 import { Modal, today } from './components';
-const bridge = () => window.meyar?.windows;
-export function NativeWindowBar({ context }: { context: WindowContext }) {
+export function NativeWindowBar({
+  context,
+  windowBridge,
+}: {
+  context: WindowContext;
+  windowBridge?: WindowBridge;
+}) {
+  const bridge = () => windowBridge ?? window.meyar?.windows;
   const [items, setItems] = useState<OpenWindow[]>([]);
   useEffect(() => {
     const w = bridge();
@@ -27,7 +38,7 @@ export function NativeWindowBar({ context }: { context: WindowContext }) {
     };
   }, []);
   return (
-    <footer className="workspace-footer native-window-bar" aria-label="Açıq Windows pəncərələri">
+    <footer className="workspace-footer native-window-bar" aria-label="Açıq daxili pəncərələr">
       <div className="workspace-tabs">
         {items.map((item) => (
           <div className={`workspace-tab ${context.id === item.id ? 'active' : ''}`} key={item.id}>
@@ -54,7 +65,16 @@ export function NativeWindowBar({ context }: { context: WindowContext }) {
     </footer>
   );
 }
-export function NativeDocument({ context }: { context: WindowContext }) {
+export function NativeDocument({
+  context,
+  windowBridge,
+  hideWindowBar = false,
+}: {
+  context: WindowContext;
+  windowBridge?: WindowBridge;
+  hideWindowBar?: boolean;
+}) {
+  const bridge = () => windowBridge ?? window.meyar?.windows;
   const [state, setState] = useState<State | null>(null),
     [error, setError] = useState(''),
     [busy, setBusy] = useState(false),
@@ -136,6 +156,31 @@ export function NativeDocument({ context }: { context: WindowContext }) {
         </div>
         <div className="heading-actions">
           <button
+            className="icon-button"
+            title="Aşağı yığ"
+            aria-label="Sənədi aşağı yığ"
+            onClick={() => void bridge()?.minimize()}
+          >
+            <Minus size={16} />
+          </button>
+          <button
+            className="icon-button"
+            title="Böyüt / əvvəlki ölçü"
+            aria-label="Sənədin ölçüsünü dəyiş"
+            onClick={() => void bridge()?.maximize()}
+          >
+            <Maximize2 size={16} />
+          </button>
+          <button
+            className="icon-button"
+            title="Bağla"
+            aria-label="Sənədi bağla"
+            disabled={busy}
+            onClick={close}
+          >
+            <X size={16} />
+          </button>
+          <button
             className="button secondary"
             onClick={() =>
               void bridge()?.open({
@@ -196,7 +241,7 @@ export function NativeDocument({ context }: { context: WindowContext }) {
           )}
         </div>
       )}
-      <NativeWindowBar context={context} />
+      {!hideWindowBar && <NativeWindowBar context={context} windowBridge={windowBridge} />}
       {partner && (
         <Modal
           title="Kontragent əlavə et"

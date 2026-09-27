@@ -45,7 +45,7 @@ import type {
   State,
 } from '../shared/types';
 import { api } from './api';
-import type { Page, WindowContext } from '../shared/windows';
+import type { Page, WindowContext, WindowBridge } from '../shared/windows';
 import { NativeWindowBar } from './NativeWindows';
 import {
   DataTable,
@@ -171,8 +171,26 @@ function Message({
     </div>
   );
 }
-export default function App({ nativeContext }: { nativeContext?: WindowContext } = {}) {
-  const desktop = window.meyar?.windows;
+export default function App({
+  nativeContext,
+  windowBridge,
+  hideWindowBar = false,
+  workspace,
+  workspaceActive = false,
+  activeWindowId,
+  navigationPage,
+  workspaceCompanyId,
+}: {
+  nativeContext?: WindowContext;
+  windowBridge?: WindowBridge;
+  hideWindowBar?: boolean;
+  workspace?: ReactNode;
+  workspaceActive?: boolean;
+  activeWindowId?: number;
+  navigationPage?: Page;
+  workspaceCompanyId?: string;
+} = {}) {
+  const desktop = windowBridge ?? window.meyar?.windows;
   const [state, setState] = useState<State | null>(null),
     [companyId, setCompanyId] = useState(nativeContext?.companyId ?? ''),
     [page, setPage] = useState<Page>(nativeContext?.page ?? 'home'),
@@ -195,7 +213,7 @@ export default function App({ nativeContext }: { nativeContext?: WindowContext }
     [loading, setLoading] = useState(true),
     [error, setError] = useState(''),
     [success, setSuccess] = useState(''),
-    [version, setVersion] = useState('0.1.4'),
+    [version, setVersion] = useState('0.1.5'),
     [reason, setReason] = useState(''),
     [closeDate, setCloseDate] = useState('');
   const activeWindow = windows[page] ?? initialWindow;
@@ -242,6 +260,9 @@ export default function App({ nativeContext }: { nativeContext?: WindowContext }
     }
   }
   useEffect(() => {
+    if (workspaceCompanyId) setCompanyId(workspaceCompanyId);
+  }, [workspaceCompanyId]);
+  useEffect(() => {
     void load(companyId, filter);
   }, [companyId, filter, page]);
   useEffect(() => {
@@ -254,7 +275,11 @@ export default function App({ nativeContext }: { nativeContext?: WindowContext }
     if (locked.current || modal) return;
     if (desktop && nativeContext) {
       void desktop
-        .open({ page: p, companyId: state?.company.id ?? companyId, filter: reportFilter })
+        .open({
+          page: p,
+          companyId: workspaceCompanyId ?? state?.company.id ?? companyId,
+          filter: reportFilter,
+        })
         .catch((e) => setError(e.message));
       return;
     }
@@ -330,8 +355,9 @@ export default function App({ nativeContext }: { nativeContext?: WindowContext }
   }
   function switchCompany(id: string) {
     if (locked.current) return;
+    if (workspace) void desktop?.focus(0);
     request.current++;
-    setState(null);
+    if (!workspace) setState(null);
     setLoading(true);
     setCompanyId(id);
     setModal(null);
@@ -364,7 +390,7 @@ export default function App({ nativeContext }: { nativeContext?: WindowContext }
         setPage('home');
         setWindows({});
         setTabs(['home']);
-        setState(null);
+        if (!workspace) setState(null);
         request.current++;
         setLoading(true);
         setCompanyId(r.id);
@@ -663,7 +689,10 @@ export default function App({ nativeContext }: { nativeContext?: WindowContext }
   function navigation(p: Page, label?: string) {
     const N = pages[p].icon;
     return (
-      <button className={`nav-item ${page === p ? 'active' : ''}`} onClick={() => open(p)}>
+      <button
+        className={`nav-item ${(navigationPage ?? page) === p ? 'active' : ''}`}
+        onClick={() => open(p)}
+      >
         <N size={17} />
         {label || pages[p].title}
       </button>
@@ -744,7 +773,9 @@ export default function App({ nativeContext }: { nativeContext?: WindowContext }
             {navigation('purchase')}
             {navigation('sale')}
             <details className="nav-dropdown">
-              <summary className={`nav-item ${bankPage ? 'active' : ''}`}>
+              <summary
+                className={`nav-item ${['bank-in', 'bank-out'].includes(navigationPage ?? page) ? 'active' : ''}`}
+              >
                 <Landmark size={17} />
                 Bank
                 <ChevronDown size={13} />
@@ -761,7 +792,9 @@ export default function App({ nativeContext }: { nativeContext?: WindowContext }
             </details>
             {navigation('trial', 'Dövriyyə balansı')}
             <details className="nav-dropdown">
-              <summary className={`nav-item ${partnerPage || page === 'accounts' ? 'active' : ''}`}>
+              <summary
+                className={`nav-item ${['partners', 'receivables', 'payables', 'accounts'].includes(navigationPage ?? page) ? 'active' : ''}`}
+              >
                 <FolderOpen size={17} />
                 Kitabçalar
                 <ChevronDown size={13} />
@@ -779,7 +812,7 @@ export default function App({ nativeContext }: { nativeContext?: WindowContext }
               </div>
             </details>
             <button
-              className={`nav-item journal-nav ${page === 'ledger' ? 'active' : ''}`}
+              className={`nav-item journal-nav ${(navigationPage ?? page) === 'ledger' ? 'active' : ''}`}
               onClick={() => open('ledger')}
             >
               <ClipboardList size={17} />
@@ -788,7 +821,9 @@ export default function App({ nativeContext }: { nativeContext?: WindowContext }
           </nav>
         </>
       )}
+      {workspace}
       <main
+        hidden={workspaceActive}
         className={`main-content ${page === 'home' ? 'home-workspace' : 'window-workspace'}`}
         aria-busy={loading || busy}
       >
@@ -1473,8 +1508,11 @@ export default function App({ nativeContext }: { nativeContext?: WindowContext }
           </div>
         </section>
       </main>
-      {nativeContext ? (
-        <NativeWindowBar context={nativeContext} />
+      {hideWindowBar ? null : nativeContext ? (
+        <NativeWindowBar
+          context={{ ...nativeContext, id: activeWindowId ?? nativeContext.id }}
+          windowBridge={desktop}
+        />
       ) : (
         <footer className="workspace-footer">
           <div className="workspace-tabs" role="tablist" aria-label="Açıq pəncərələr">

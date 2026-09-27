@@ -2377,3 +2377,63 @@ textarea,
   flex-shrink: 0;
   margin: 10px 16px 0;
 }
+
+/* One native shell; module and document windows live below its persistent navigation. */
+[hidden] {
+  display: none !important;
+}
+.internal-workspace {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  background: #e8e5dc;
+}
+.internal-pane {
+  position: absolute;
+  inset: 0;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.internal-pane.restored {
+  inset: auto;
+  width: calc(100% - 48px);
+  height: calc(100% - 32px);
+  max-width: 100%;
+  max-height: 100%;
+  min-width: 620px;
+  min-height: 380px;
+  resize: both;
+  border: 1px solid #bfb8a6;
+  box-shadow: 0 6px 24px #51462935;
+  background: #fff;
+}
+.internal-pane.document-pane.restored {
+  width: min(800px, calc(100% - 48px));
+}
+.internal-pane > .app-shell,
+.internal-pane > .native-document-shell {
+  height: 100%;
+  min-height: 0;
+}
+.internal-pane.restored .page-heading,
+.internal-pane.restored .native-document-heading {
+  cursor: move;
+  touch-action: none;
+}
+.internal-pane .native-document-heading {
+  padding: 8px 12px;
+  background: #f7efcf;
+}
+.internal-pane .native-document-heading h1 {
+  font-size: 15px;
+}
+.internal-pane .native-document-heading p {
+  font-size: 11px;
+}
+.internal-pane .native-document-heading .heading-actions {
+  gap: 4px;
+  flex-wrap: wrap;
+}

@@ -459,3 +459,117 @@ test('Module windows keep independent filters, searches and pagination; minimize
     store.close();
   }
 });
+
+test('Internal workspace preserves invoice fields across modules and company switches, posts to the original company, and never opens another native window', async () => {
+  const { Workspace } = await import('../src/Workspace');
+  const store = new Store(':memory:');
+  const first = (
+    store.call({ op: 'company.create', name: 'A MMC', taxId: '1111111111' }) as { id: string }
+  ).id;
+  const second = (
+    store.call({ op: 'company.create', name: 'B MMC', taxId: '2222222222' }) as { id: string }
+  ).id;
+  const partner = (
+    store.call({ op: 'partner.save', companyId: first, name: 'Alıcı', taxId: '3333333333' }) as {
+      id: string;
+    }
+  ).id;
+  const listeners = new Set<(id: string) => void>();
+  let dirty = false,
+    confirmations = 0;
+  Object.assign(globalThis, {
+    ResizeObserver: class {
+      observe() {}
+      disconnect() {}
+    },
+  });
+  const host: import('../shared/windows').WindowBridge = {
+    context: async () => ({ id: 1, page: 'home', companyId: '' }),
+    open: async () => {
+      throw new Error('Unexpected native window');
+    },
+    list: async () => [],
+    focus: async () => {},
+    close: async () => {},
+    minimize: async () => {},
+    maximize: async () => {},
+    setDirty: async (value) => {
+      dirty = value;
+    },
+    confirmDiscard: async () => {
+      confirmations++;
+      return false;
+    },
+    onChanged: () => () => {},
+    onDataChanged: (cb) => {
+      listeners.add(cb);
+      return () => {
+        listeners.delete(cb);
+      };
+    },
+  };
+  window.meyar = {
+    windows: host,
+    call: async (command) => {
+      const result = store.call(command);
+      if (command.op !== 'state' && command.op !== 'company.create')
+        for (const cb of listeners) cb(command.companyId);
+      return result;
+    },
+    backup: async () => null,
+    importFile: async () => null,
+    template: async () => null,
+    checkUpdate: async () => '',
+    version: async () => 'test',
+  };
+  const user = userEvent.setup();
+  try {
+    render(<Workspace host={host} />);
+    await screen.findByRole('combobox', { name: 'Aktiv şirkət' });
+    await user.click(screen.getByRole('button', { name: 'Gedən qaimələr', exact: true }));
+    await user.click(await screen.findByRole('button', { name: 'Əlavə et', exact: true }));
+    const number = await screen.findByRole('textbox', { name: 'Qaimə nömrəsi' });
+    await user.type(number, 'INTERNAL-DRAFT');
+    await user.selectOptions(screen.getByRole('combobox', { name: /^Kontragent/ }), partner);
+    await user.type(screen.getByRole('textbox', { name: 'Əsas məbləğ · AZN' }), '100');
+    assert.equal(dirty, true);
+    await user.click(screen.getByRole('button', { name: 'Bank', exact: true }));
+    await screen.findByRole('heading', { name: 'Daxil olan ödənişlər' });
+    const footer = within(document.querySelector('.workspace-footer') as HTMLElement);
+    await user.click(footer.getByRole('button', { name: /^● Yeni qaimə/ }));
+    assert.equal(
+      (screen.getByRole('textbox', { name: 'Qaimə nömrəsi' }) as HTMLInputElement).value,
+      'INTERNAL-DRAFT',
+    );
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Aktiv şirkət' }), second);
+    await waitFor(() =>
+      assert.equal(
+        (screen.getByRole('combobox', { name: 'Aktiv şirkət' }) as HTMLSelectElement).value,
+        second,
+      ),
+    );
+    await user.click(footer.getByRole('button', { name: /^● Yeni qaimə/ }));
+    assert.equal(
+      (screen.getByRole('textbox', { name: 'Qaimə nömrəsi' }) as HTMLInputElement).value,
+      'INTERNAL-DRAFT',
+    );
+    await user.click(screen.getByRole('button', { name: 'Sənədi bağla' }));
+    assert.equal(confirmations, 1);
+    assert.ok(screen.getByRole('textbox', { name: 'Qaimə nömrəsi' }));
+    await user.click(screen.getByRole('button', { name: 'Yadda saxla', exact: true }));
+    await waitFor(() =>
+      assert.equal(screen.queryByRole('textbox', { name: 'Qaimə nömrəsi' }), null),
+    );
+    const filter = { from: '2000-01-01', to: '2099-12-31', account: '' };
+    assert.equal(store.snapshot(first, filter).invoices.length, 1);
+    assert.equal(store.snapshot(second, filter).invoices.length, 0);
+    assert.equal(store.snapshot(first, filter).ledger.length, 2);
+    assert.equal(dirty, false);
+    assert.equal(document.querySelectorAll('.app-header').length, 1);
+    assert.equal(document.querySelectorAll('.main-nav').length, 1);
+    assert.equal(document.querySelectorAll('.workspace-footer').length, 1);
+  } finally {
+    cleanup();
+    store.close();
+  }
+});

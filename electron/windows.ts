@@ -139,6 +139,7 @@ export class WindowManager {
   }
   async create(value: WindowRequest, source?: Entry): Promise<BrowserWindow> {
     const r = this.request(value, source);
+    if (r.page !== 'home' || r.form) throw new Error('Bölmələr proqram daxilində açılır.');
     // New document requests get a new editor; existing documents focus their own editor.
     const key = JSON.stringify([
       r.page,

@@ -1,8 +1,7 @@
-import React, { Component, useEffect, useState, type ErrorInfo, type ReactNode } from 'react';
+import React, { Component, type ErrorInfo, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
-import { NativeDocument } from './NativeWindows';
-import type { WindowContext } from '../shared/windows';
+import { Workspace } from './Workspace';
 import './styles.css';
 class ErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
   state = { failed: false };
@@ -27,22 +26,8 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean
   }
 }
 function Application() {
-  const [context, setContext] = useState<WindowContext | null>(null),
-    [error, setError] = useState('');
-  const native = window.meyar?.windows;
-  useEffect(() => {
-    if (native)
-      void native
-        .context()
-        .then(setContext)
-        .catch((e) => setError(e.message));
-  }, []);
-  if (native && !context) return <div className="startup">{error || 'Pəncərə açılır…'}</div>;
-  return context?.form ? (
-    <NativeDocument context={context} />
-  ) : (
-    <App nativeContext={context ?? undefined} />
-  );
+  const host = window.meyar?.windows;
+  return host ? <Workspace host={host} /> : <App />;
 }
 createRoot(document.getElementById('root')!).render(
   <ErrorBoundary>

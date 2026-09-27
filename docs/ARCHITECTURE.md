@@ -48,12 +48,12 @@ Bu ilkin versiyada yayımlanmış/imzalanmış yeniləmə kanalı yoxdur. İstif
 5. Qanunvericiliklə yoxlanılmış vergi hesabatları və insan mühasibin nümunə bazası üzrə qəbul yoxlaması.
 6. Windows interfeysinin real cihazda vizual qəbulu və yeniləmə/bərpa ssenarisinin tam sınağı.
 
-## Müstəqil Windows pəncərələri
+## Proqram daxilində pəncərələr
 
-`electron/windows.ts` hər modul və sənəd üçün ayrıca, parentsiz `BrowserWindow` yaradır. Şirkət və modul konteksti main prosesdə saxlanılır; renderer göndərdiyi şirkət ID-si ilə bu sərhədi dəyişə bilməz. İş masası şirkət seçimi və yeni şirkət yaradılması üçündür. Mövcud sənəd yenidən açılanda onun pəncərəsi önə gətirilir; yeni sənəd ayrıca redaktor alır.
+Electron yalnız bir əsas BrowserWindow yaradır. `src/Workspace.tsx` modul və sənəd pəncərələrinin kontekstini, aktiv pəncərəni, ölçü vəziyyətini və dəyişiklik nişanını idarə edir. Hər bölmə eyni proqram daxilində qalır; ayrıca OS pəncərəsi yaratmaq main prosesdə rədd edilir.
 
-Bütün pəncərələr vahid main prosesdəki Store-a dar IPC ilə müraciət edir. SQLite yazıları sinxron tranzaksiyalarda icra edilir. Uğurlu dəyişiklikdən sonra şirkət ID-si ilə bildiriş verilir və həmin şirkətin açıq siyahıları yenidən oxunur. Redaktorun ilkin sənəd versiyası bildirişlə dəyişmir: köhnə redaktor daha yeni düzəlişi əvəz edə bilməz.
+Üst menyu və alt pəncərə siyahısı vahiddir. Gizlədilən pəncərələr React ağacından çıxarılmır: filtr, səhifə və sənəd sahələri keçidlərdə qalır. Şirkət dəyişməsi açıq sənədin şirkət kontekstini dəyişmir. Hər əməliyyat şirkət ID-si ilə vahid Store-a gedir; verilənlər bazasının şirkət sərhədləri, tranzaksiyalar və versiya yoxlamaları qüvvədədir.
 
-Saxlanmamış sənəd üçün main proses pəncərə bağlanışını saxlayır və təsdiq istəyir. Sahələr pəncərə keçidlərində qalır; qəza və ya elektrik kəsilməsindən sonra qaralamaların bərpası bu versiyaya daxil deyil. Saxlama sənədi, müxabirləşməni və auditi vahid tranzaksiyada yazır. Ayrı uçotaalma düyməsi yoxdur.
+Daxili redaktorların dirty vəziyyəti birləşdirilərək əsas Electron pəncərəsinə ötürülür. Həm daxili sənədin, həm bütün proqramın bağlanması saxlanmamış məlumat üçün təsdiq tələb edir. Qəza və ya elektrik kəsilməsi sonrası qaralama bərpası bu versiyaya daxil deyil.
 
-`scripts/electron-layout-smoke.cjs` Windows CI-də real Electron pəncərələrini, müstəqil hərəkəti, saxlanmamış sahələri, bağlama qorunmasını, avtomatik uçotu, bildiriş yenilənməsini, şirkət sərhədini və köhnə versiya rəddini yoxlayır.
+Windows inteqrasiya sınağı BrowserWindow sayının bir qalmasını, tək menyu və footer, filtr nisbəti, sənəd sahələrinin saxlanması, avtomatik uçot, köhnə düzəlişin rəddi və bağlama qorunmasını yoxlayır.

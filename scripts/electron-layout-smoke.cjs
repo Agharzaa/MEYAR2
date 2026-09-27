@@ -1,5 +1,5 @@
-// Real native-window integration test. All data is synthetic and in memory.
-const { app } = require('electron');
+// Real Electron integration: one OS window with persistent internal workspaces.
+const { app, BrowserWindow } = require('electron');
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
@@ -7,63 +7,70 @@ const { mkdir, writeFile } = require('node:fs/promises');
 const root = path.resolve(__dirname, '..');
 let store, manager, window;
 const timeout = setTimeout(() => {
-  console.error('Native validation timed out');
+  console.error('Workspace validation timed out');
   app.exit(1);
 }, 90000);
 const evaluate = (expression) => window.webContents.executeJavaScript(expression);
 async function waitFor(check, label) {
-  const deadline = Date.now() + 12000;
-  while (Date.now() < deadline) {
+  const end = Date.now() + 12000;
+  while (Date.now() < end) {
     if (await check()) return;
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await new Promise((r) => setTimeout(r, 50));
   }
   throw new Error(`Condition not met: ${label}`);
 }
 const until = (expression) => waitFor(() => evaluate(expression), expression);
-async function click(text) {
+async function click(text, scope = 'document', partial = false) {
   assert.ok(
     await evaluate(
-      `(() => { const b = [...document.querySelectorAll('button')].find(b => b.textContent.trim() === ${JSON.stringify(text)}); if (!b || b.disabled) return false; b.click(); return true; })()`,
+      `(()=>{const root=${scope};const b=[...root.querySelectorAll('button')].find(b=>b.getClientRects().length && ( ${partial} ? b.textContent.includes(${JSON.stringify(text)}) : b.textContent.trim()===${JSON.stringify(text)}));if(!b||b.disabled)return false;b.click();return true;})()`,
     ),
     `Missing enabled button ${text}`,
   );
 }
-async function selectWindow(page, form) {
-  let entry;
-  await waitFor(() => {
-    entry = [...manager.entries.values()].find(
-      (e) => e.context.page === page && e.context.form === form,
-    );
-    return !!entry;
-  }, `window ${page}/${form}`);
-  window = entry.window;
-  await until(
-    form
-      ? "!!document.querySelector('form input')"
-      : "!!document.querySelector('.module-window') && document.querySelector('main')?.getAttribute('aria-busy') === 'false'",
+async function clickLabel(label) {
+  assert.ok(
+    await evaluate(
+      `(()=>{const b=[...document.querySelectorAll('button')].find(b=>b.getClientRects().length&&b.getAttribute('aria-label')===${JSON.stringify(label)});if(!b)return false;b.click();return true;})()`,
+    ),
+    label,
   );
-  return window;
+}
+async function pane(page, form = '') {
+  await until(
+    `(()=>{const p=document.querySelector('.internal-pane:not([hidden])');return p?.dataset.page===${JSON.stringify(page)}&&p.dataset.form===${JSON.stringify(form)}&&${form ? "!!p.querySelector('form input')" : "p.querySelector('main')?.getAttribute('aria-busy')==='false'"};})()`,
+  );
+  assert.equal(
+    BrowserWindow.getAllWindows().length,
+    1,
+    'Modules and editors never create OS windows',
+  );
 }
 async function field(label, value) {
-  await evaluate(`(() => {
-    const label = [...document.querySelectorAll('label')].find(el => el.textContent.includes(${JSON.stringify(label)}));
-    const input = label?.querySelector('input,select,textarea') || document.getElementById(label?.htmlFor);
-    if (!input) throw new Error('Missing field');
-    const prototype = input instanceof HTMLSelectElement ? HTMLSelectElement.prototype : input instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
-    Object.getOwnPropertyDescriptor(prototype, 'value').set.call(input, ${JSON.stringify(value)});
-    input.dispatchEvent(new Event(input instanceof HTMLSelectElement ? 'change' : 'input', {bubbles:true}));
-  })()`);
+  await evaluate(
+    `(()=>{const root=document.querySelector('.internal-pane:not([hidden])');const label=[...root.querySelectorAll('label')].find(e=>e.textContent.includes(${JSON.stringify(label)}));const input=label.querySelector('input,select,textarea');const proto=input instanceof HTMLSelectElement?HTMLSelectElement.prototype:input instanceof HTMLTextAreaElement?HTMLTextAreaElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(proto,'value').set.call(input,${JSON.stringify(value)});input.dispatchEvent(new Event(input instanceof HTMLSelectElement?'change':'input',{bubbles:true}));})()`,
+  );
 }
+async function company(id) {
+  await evaluate(
+    `(()=>{const s=document.querySelector('.app-header select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,${JSON.stringify(id)});s.dispatchEvent(new Event('change',{bubbles:true}));})()`,
+  );
+  await until(
+    `document.querySelector('.app-header select')?.value===${JSON.stringify(id)}&&!document.querySelector('.app-header select').disabled`,
+  );
+}
+const active = "document.querySelector('.internal-pane:not([hidden])')";
+const tabs = "document.querySelector('.workspace-footer')";
 async function layout(name, width, height) {
   window.setContentSize(width, height);
   await evaluate(
     'new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))',
   );
   const dimensions = await evaluate(`(() => {
-    const rect = selector => { const r = document.querySelector(selector).getBoundingClientRect(); return { x:r.x, y:r.y, width:r.width, height:r.height, right:r.right, bottom:r.bottom }; };
+    const rect = selector => { const r = (document.querySelector('.internal-pane:not([hidden])')?.querySelector(selector) || document.querySelector(selector)).getBoundingClientRect(); return { x:r.x, y:r.y, width:r.width, height:r.height, right:r.right, bottom:r.bottom }; };
     return { workspace:rect('.module-workspace'), filter:rect('.filter-bar'), body:rect('.window-body'), table:rect('.data-table'), footer:rect('.workspace-footer'), viewport:{width:innerWidth,height:innerHeight}, scrollWidth:document.documentElement.scrollWidth,
-      heading:rect('.page-heading'), repeatedHeader:!!document.querySelector('.app-header'), repeatedNavigation:!!document.querySelector('.main-nav'),
-      controls:[...document.querySelectorAll('.filter-bar input, .filter-bar select, .filter-bar button')].map(el=>({label:el.getAttribute('aria-label')||el.textContent, rect:{top:el.getBoundingClientRect().top,bottom:el.getBoundingClientRect().bottom}})) };
+      heading:rect('.page-heading'), headerCount:document.querySelectorAll('.app-header').length, navigationCount:document.querySelectorAll('.main-nav').length, footerCount:document.querySelectorAll('.workspace-footer').length,
+      controls:[...document.querySelector('.internal-pane:not([hidden])').querySelectorAll('.filter-bar input, .filter-bar select, .filter-bar button')].map(el=>({label:el.getAttribute('aria-label')||el.textContent, rect:{top:el.getBoundingClientRect().top,bottom:el.getBoundingClientRect().bottom}})) };
   })()`);
   assert.ok(dimensions.table.height > 300, 'Table has adequate usable height');
   assert.ok(
@@ -90,20 +97,12 @@ async function layout(name, width, height) {
       `Filter control clipped: ${control.label}`,
     );
   }
-  assert.equal(
-    dimensions.repeatedHeader,
-    false,
-    'Module does not repeat the company and logo header',
-  );
-  assert.equal(
-    dimensions.repeatedNavigation,
-    false,
-    'Module does not repeat the desktop navigation',
-  );
-  assert.equal(
-    dimensions.heading.y,
-    0,
-    'Module toolbar starts at the top without a blank header gap',
+  assert.equal(dimensions.headerCount, 1, 'One shared application header');
+  assert.equal(dimensions.navigationCount, 1, 'One shared module menu');
+  assert.equal(dimensions.footerCount, 1, 'One shared internal-window strip');
+  assert.ok(
+    dimensions.heading.y >= 80 && dimensions.heading.y < 100,
+    'Internal module stays below shared navigation',
   );
   await writeFile(
     path.join(root, 'screenshots', `${name}.png`),
@@ -138,8 +137,8 @@ app
       name: 'Rabitə xidmətləri MMC',
       taxId: '0123456789',
     });
-    const year = new Date().getFullYear();
-    const filter = { from: `${year}-01-01`, to: `${year}-12-31`, account: '' };
+    const year = new Date().getFullYear(),
+      filter = { from: `${year}-01-01`, to: `${year}-12-31`, account: '' };
     const invoice = {
       number: 'MT-00001',
       date: `${year}-01-01`,
@@ -163,132 +162,127 @@ app
       path.join(root, 'dist/main/electron/preload.cjs'),
     );
     manager.register();
-    manager.handle('meyar:version', () => '0.1.4-native-test');
+    manager.handle('meyar:version', () => '0.1.5-workspace-test');
     await mkdir(path.join(root, 'screenshots'), { recursive: true });
-    const home = await manager.create({ page: 'home', companyId: '' });
-    window = home;
+    window = await manager.create({ page: 'home', companyId: '' });
     await until(
-      "!!document.querySelector('.module-window') && document.querySelector('main')?.getAttribute('aria-busy') === 'false'",
+      "!!document.querySelector('.main-nav')&&!document.querySelector('.app-header select').disabled",
     );
-    // Select a known company; root state defaults to alphabetical first company.
-    await evaluate(
-      `(() => {const el=document.querySelector('.company-select select') || document.querySelector('.app-header select');Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(el,${JSON.stringify(companyId)});el.dispatchEvent(new Event('change',{bubbles:true}));})()`,
-    );
-    await until(
-      `document.querySelector('.app-header select')?.value === ${JSON.stringify(companyId)} && document.querySelector('main')?.getAttribute('aria-busy') === 'false'`,
-    );
-    assert.equal(
-      await evaluate("getComputedStyle(document.querySelector('.app-header')).backgroundColor"),
-      'rgb(255, 229, 119)',
-      'Desktop keeps its yellow header and module navigation',
-    );
+    await company(companyId);
     await click('Gələn qaimələr');
-    const purchase = await selectWindow('purchase');
-    assert.notEqual(purchase.id, home.id);
-    assert.ok(
-      purchase.getTitle().includes('Gələn qaimələr') && purchase.getTitle().includes('Nümunə MMC'),
-      'Native title identifies module and company',
-    );
-    assert.equal(purchase.getParentWindow(), null, 'Modules are independent OS windows');
+    await pane('purchase');
     const results = {};
     results.standard = await layout('purchase-1440', 1440, 940);
     results.minimum = await layout('purchase-1050', 1050, 700);
     results.large = await layout('purchase-1920', 1920, 1080);
-    // Reopening a module focuses its existing window and preserves local filters.
-    const same = await manager.create({ page: 'purchase', companyId });
-    assert.equal(same.id, purchase.id);
-    window = home;
-    await click('Dövriyyə balansı');
-    const trial = await selectWindow('trial');
+    await click('Dövriyyə balansı', "document.querySelector('.main-nav')");
+    await pane('trial');
     results.trial = await layout('trial-1440', 1440, 940);
-    window = purchase;
-    await click('Əlavə et');
-    const editor = await selectWindow('purchase', 'invoice');
-    assert.equal(editor.getParentWindow(), null, 'Editor is not a modal child window');
-    await field('Qaimə nömrəsi', 'NATIVE-66');
+    await click('Gələn qaimələr', "document.querySelector('.main-nav')");
+    await pane('purchase');
+    await clickLabel('Böyüt / əvvəlki ölçü');
+    await until(
+      "document.querySelector('.internal-pane:not([hidden])').classList.contains('restored')",
+    );
+    assert.equal(window.isMaximized(), false, 'Internal restore does not maximize the OS window');
+    await clickLabel('Pəncərəni aşağı yığ');
+    await until("!document.querySelector('.internal-pane:not([hidden])')");
+    await click('Gələn qaimələr', tabs, true);
+    await pane('purchase');
+    await clickLabel('Böyüt / əvvəlki ölçü');
+    await click('Əlavə et', active);
+    await pane('purchase', 'invoice');
+    await field('Qaimə nömrəsi', 'INTERNAL-66');
     await field('Kontragent', partnerId);
     await field('Subkonto', 'Rabitə');
     await field('Əsas məbləğ', '100');
     await field('ƏDV məbləği', '18');
     await waitFor(
-      () => manager.entries.get(editor.id)?.dirty,
-      'Unsaved editor tracked in main process',
+      () => manager.entries.get(window.id).dirty,
+      'Host aggregates document dirty state',
     );
-    await click('Bank');
-    const bank = await selectWindow('bank-out');
-    assert.equal(bank.getParentWindow(), null);
-    const bankBounds = bank.getBounds();
-    purchase.setBounds({ x: 40, y: 40, width: 1200, height: 800 });
-    assert.deepEqual(bank.getBounds(), bankBounds, 'Windows move independently');
-    window = editor;
+    const editorId = await evaluate(
+      "document.querySelector('.internal-pane:not([hidden])').dataset.paneId",
+    );
+    await click('Bank', active);
+    await pane('bank-out');
+    await click('Yeni qaimə', tabs, true);
+    await pane('purchase', 'invoice');
+    assert.equal(await evaluate(`${active}.querySelector('form input').value`), 'INTERNAL-66');
+    // Company changes must not unmount an open draft or change its original company.
+    await company(otherCompany);
+    await click('Yeni qaimə', tabs, true);
+    await pane('purchase', 'invoice');
     assert.equal(
-      await evaluate("document.querySelector('form input').value"),
-      'NATIVE-66',
-      'Switching preserves entered fields',
+      await evaluate(`${active}.querySelector('form input').value`),
+      'INTERNAL-66',
+      'Draft survives company switch',
     );
-    // A cancelled close must preserve the native window and its draft.
     let asked = 0;
     manager.confirmDiscard = async () => {
       asked++;
       return false;
     };
-    editor.close();
-    await waitFor(() => asked === 1, 'Native close confirmation');
-    assert.equal(editor.isDestroyed(), false);
-    await click('Yadda saxla');
-    await waitFor(() => editor.isDestroyed(), 'Successful save closes editor');
+    await clickLabel('Sənədi bağla');
+    await waitFor(() => asked === 1, 'Internal close asks before discarding');
+    assert.equal(await evaluate(`!!document.querySelector('[data-pane-id="${editorId}"]')`), true);
+    window.close();
+    await waitFor(() => asked === 2, 'Application close protects internal drafts');
+    assert.equal(window.isDestroyed(), false);
+    await writeFile(
+      path.join(root, 'screenshots/internal-invoice.png'),
+      (await window.webContents.capturePage()).toPNG(),
+    );
+    await click('Yadda saxla', active);
+    await until(`!document.querySelector('[data-pane-id="${editorId}"]')`);
     const state = store.snapshot(companyId, filter);
     assert.equal(state.invoices.length, 66);
-    assert.equal(state.invoices.find((i) => i.number === 'NATIVE-66').status, 'posted');
     assert.equal(
-      state.ledger.filter((r) => r.sourceNumber === 'NATIVE-66').length,
+      store.snapshot(otherCompany, filter).invoices.length,
+      0,
+      'Save uses original company',
+    );
+    assert.equal(
+      state.ledger.filter((r) => r.sourceNumber === 'INTERNAL-66').length,
       3,
-      'Save automatically posts balanced journal',
+      'Save automatically posts',
     );
-    window = purchase;
-    await until("document.body.textContent.includes('NATIVE-66')");
-    window = trial;
-    await until("document.querySelector('main')?.getAttribute('aria-busy') === 'false'");
-    assert.equal(
-      await evaluate(
-        `window.meyar.call({op:'state',companyId:${JSON.stringify(otherCompany)},filter:${JSON.stringify(filter)}}).then(()=>false,()=>true)`,
-      ),
-      true,
-      'IPC rejects foreign company access',
-    );
-    // Open an existing editor, update the document elsewhere and reject its stale save.
-    const first = state.invoices.find((i) => i.number === 'MT-00001');
-    window = await manager.create({
-      page: 'purchase',
-      companyId,
-      form: 'invoice',
-      documentId: first.id,
-    });
-    await until("!!document.querySelector('form input')");
+    await click('Gələn qaimələr · Nümunə MMC', tabs, true);
+    await pane('purchase');
+    await until(`${active}.textContent.includes('INTERNAL-66')`);
+    // Open a real row editor then change that document through the main-process API.
+    await click('INTERNAL-66', active);
+    await pane('purchase', 'invoice');
     await field('Əsas məbləğ', '300');
-    await home.webContents.executeJavaScript(
-      `window.meyar.call(${JSON.stringify({ op: 'invoice.save', companyId, invoice: { ...invoice, id: first.id, expectedVersion: 1, net: '400' } })})`,
+    const saved = state.invoices.find((i) => i.number === 'INTERNAL-66');
+    await evaluate(
+      `window.meyar.call(${JSON.stringify({ op: 'invoice.save', companyId, invoice: { ...saved, expectedVersion: saved.version, net: '400' } })})`,
     );
-    await click('Düzəlişi saxla');
-    await until("document.querySelector('[role=alert]')?.textContent.includes('başqa pəncərədə')");
+    await click('Düzəlişi saxla', active);
+    await until(`${active}.querySelector('[role=alert]')?.textContent.includes('başqa pəncərədə')`);
     assert.equal(
-      store.snapshot(companyId, filter).invoices.find((i) => i.id === first.id).netCents,
+      store.snapshot(companyId, filter).invoices.find((i) => i.id === saved.id).netCents,
       40000,
     );
     assert.equal(
-      await evaluate("[...document.querySelectorAll('input')].some(i=>i.value==='300')"),
+      await evaluate(`[...${active}.querySelectorAll('input')].some(i=>i.value==='300')`),
       true,
-      'Conflict preserves unsaved input',
     );
     manager.confirmDiscard = async () => true;
-    const conflicted = window;
-    conflicted.close();
-    await waitFor(() => conflicted.isDestroyed(), 'Confirmed draft discard');
-    results.nativeWindows = {
-      independent: true,
-      savePosts: true,
-      synchronized: true,
-      tenantGuard: true,
+    await clickLabel('Sənədi bağla');
+    await until("!document.querySelector('.internal-pane[data-form=invoice]')");
+    assert.equal(manager.entries.get(window.id).dirty, false);
+    assert.equal(BrowserWindow.getAllWindows().length, 1);
+    await assert.rejects(
+      () => manager.create({ page: 'purchase', companyId }),
+      /proqram daxilində/,
+    );
+    results.internalWindows = {
+      oneNativeWindow: true,
+      persistentDraft: true,
+      companySwitch: true,
+      automaticPosting: true,
+      refresh: true,
       staleEditGuard: true,
       dirtyCloseGuard: true,
     };
@@ -297,10 +291,10 @@ app
       JSON.stringify(results, null, 2),
     );
     console.log(
-      'Native Electron integration passed: independent OS windows, draft preservation, automatic posting, refresh, tenant and stale-edit guards, 7:93 layout.',
+      'Internal workspace passed: one native window, shared menu, persistent drafts, company isolation, posting and close guards.',
     );
     clearTimeout(timeout);
-    for (const e of [...manager.entries.values()]) e.window.destroy();
+    window.destroy();
     store.close();
     app.exit(0);
   })
