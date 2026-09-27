@@ -152,6 +152,7 @@ export class WindowManager {
       this.focus(existing.window.id);
       return existing.window;
     }
+    const title = `${r.form ? (r.documentId ? 'Qaiməyə düzəliş' : 'Yeni sənəd') + ' · ' : ''}${windowTitles[r.page]}${r.companyId ? ' · ' + this.store.companyName(r.companyId) : ''} — Meyar ERP`;
     const native = new BrowserWindow({
       width: r.form ? 760 : 1440,
       height: r.form ? 830 : 940,
@@ -160,7 +161,7 @@ export class WindowManager {
       show: false,
       backgroundColor: '#f8f3df',
       autoHideMenuBar: true,
-      title: 'Meyar ERP 2',
+      title,
       webPreferences: {
         preload: this.preload,
         contextIsolation: true,
@@ -176,9 +177,7 @@ export class WindowManager {
     const context = { ...r, id: windowId };
     const entry: Entry = { window: native, context, dirty: false, key };
     this.entries.set(native.id, entry);
-    const title = `${r.form ? (r.documentId ? 'Qaiməyə düzəliş' : 'Yeni sənəd') + ' · ' : ''}${windowTitles[r.page]}${r.companyId ? ' · ' + this.store.companyName(r.companyId) : ''} — Meyar ERP`;
-    native.setTitle(title);
-    native.webContents.on('page-title-updated', (e) => e.preventDefault());
+    native.on('page-title-updated', (event) => event.preventDefault());
     native.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     native.webContents.on('will-navigate', (event, url) => {
       if (!this.allowedURL(url)) event.preventDefault();
@@ -207,7 +206,11 @@ export class WindowManager {
       this.entries.delete(windowId);
       this.notify();
     });
-    native.once('ready-to-show', () => native.show());
+    native.once('ready-to-show', () => {
+      native.setTitle(title);
+      native.show();
+      this.notify();
+    });
     try {
       if (this.dev) await native.loadURL('http://127.0.0.1:5173');
       else await native.loadFile(this.renderer);
@@ -239,6 +242,7 @@ export class WindowManager {
     });
     this.handle('meyar:window-dirty', (e, dirty) => {
       if (typeof dirty !== 'boolean') throw new Error('Pəncərə vəziyyəti düzgün deyil.');
+      if (e.dirty === dirty) return;
       e.dirty = dirty;
       this.notify();
     });

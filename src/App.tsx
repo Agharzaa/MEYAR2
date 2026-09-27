@@ -195,7 +195,7 @@ export default function App({ nativeContext }: { nativeContext?: WindowContext }
     [loading, setLoading] = useState(true),
     [error, setError] = useState(''),
     [success, setSuccess] = useState(''),
-    [version, setVersion] = useState('0.1.2'),
+    [version, setVersion] = useState('0.1.3'),
     [reason, setReason] = useState(''),
     [closeDate, setCloseDate] = useState('');
   const activeWindow = windows[page] ?? initialWindow;

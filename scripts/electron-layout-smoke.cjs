@@ -149,7 +149,7 @@ app
       path.join(root, 'dist/main/electron/preload.cjs'),
     );
     manager.register();
-    manager.handle('meyar:version', () => '0.1.2-native-test');
+    manager.handle('meyar:version', () => '0.1.3-native-test');
     await mkdir(path.join(root, 'screenshots'), { recursive: true });
     const home = await manager.create({ page: 'home', companyId: '' });
     window = home;
@@ -166,6 +166,10 @@ app
     await click('Gələn qaimələr');
     const purchase = await selectWindow('purchase');
     assert.notEqual(purchase.id, home.id);
+    assert.ok(
+      purchase.getTitle().includes('Gələn qaimələr') && purchase.getTitle().includes('Nümunə MMC'),
+      'Native title identifies module and company',
+    );
     assert.equal(purchase.getParentWindow(), null, 'Modules are independent OS windows');
     const results = {};
     results.standard = await layout('purchase-1440', 1440, 940);
