@@ -34,6 +34,18 @@ jobs:
         run: npm run dist:win
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      - name: Validate native Electron window layout
+        shell: pwsh
+        run: |
+          & ./node_modules/electron/dist/electron.exe ./scripts/electron-layout-smoke.cjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Meyar-UI-layout
+          path: screenshots/
+          if-no-files-found: ignore
+          retention-days: 14
       - uses: actions/upload-artifact@v4
         with:
           name: Meyar-ERP-2-Windows-Review
@@ -42,3 +54,37 @@ jobs:
             release/*.blockmap
           if-no-files-found: error
           retention-days: 14
+
+  publish:
+    needs: windows
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RUN_ID: ${{ github.run_id }}
+      COMMIT_SHA: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Publish the validated installer for direct download
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION=$(node -p "require('./package.json').version")
+          TAG="v${VERSION}-review"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists; keeping its installer unchanged."
+            exit 0
+          fi
+          gh run download "$RUN_ID" --name Meyar-ERP-2-Windows-Review --dir installer
+          FILE="Meyar-ERP-2-Setup-${VERSION}.exe"
+          test -s "installer/$FILE"
+          (cd installer && sha256sum "$FILE" > SHA256SUMS.txt)
+          gh release create "$TAG" "installer/$FILE" installer/SHA256SUMS.txt \
+            --target "$COMMIT_SHA" --prerelease \
+            --title "Meyar ERP 2 - Windows ${VERSION}" \
+            --notes-file docs/RELEASE.md

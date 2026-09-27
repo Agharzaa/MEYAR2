@@ -19,6 +19,9 @@ import {
   Home,
   Landmark,
   LockKeyhole,
+  Maximize2,
+  Minimize2,
+  Minus,
   Plus,
   RefreshCw,
   Search,
@@ -52,6 +55,7 @@ import {
   money,
   today,
   type Column,
+  type TableView,
 } from './components';
 import { IdentityForm, InvoiceForm, PaymentForm } from './forms';
 type Page =
@@ -145,6 +149,20 @@ const initialFilter: ReportFilter = {
   to: today(),
   account: '',
 };
+type WindowState = {
+  filter: ReportFilter;
+  draft: ReportFilter;
+  search: string;
+  table: TableView;
+  restored: boolean;
+};
+const initialWindow: WindowState = {
+  filter: initialFilter,
+  draft: initialFilter,
+  search: '',
+  table: { page: 0, size: 25 },
+  restored: false,
+};
 function Message({
   children,
   type = 'error',
@@ -170,9 +188,7 @@ export default function App() {
     [companyId, setCompanyId] = useState(''),
     [page, setPage] = useState<Page>('home'),
     [tabs, setTabs] = useState<Page[]>(['home']),
-    [filter, setFilter] = useState(initialFilter),
-    [draft, setDraft] = useState(initialFilter),
-    [search, setSearch] = useState(''),
+    [windows, setWindows] = useState<Partial<Record<Page, WindowState>>>({}),
     [modal, setModal] = useState<ModalState>(null),
     [partnerOverInvoice, setPartnerOverInvoice] = useState(false),
     [newPartnerId, setNewPartnerId] = useState(''),
@@ -180,9 +196,33 @@ export default function App() {
     [loading, setLoading] = useState(true),
     [error, setError] = useState(''),
     [success, setSuccess] = useState(''),
-    [version, setVersion] = useState('0.1.0'),
+    [version, setVersion] = useState('0.1.1'),
     [reason, setReason] = useState(''),
     [closeDate, setCloseDate] = useState('');
+  const activeWindow = windows[page] ?? initialWindow;
+  const { filter, draft, search } = activeWindow;
+  function updateWindow(p: Page, update: Partial<WindowState>) {
+    setWindows((current) => ({ ...current, [p]: { ...(current[p] ?? initialWindow), ...update } }));
+  }
+  function setDraft(value: ReportFilter | ((previous: ReportFilter) => ReportFilter)) {
+    setWindows((current) => {
+      const window = current[page] ?? initialWindow;
+      return {
+        ...current,
+        [page]: { ...window, draft: typeof value === 'function' ? value(window.draft) : value },
+      };
+    });
+  }
+  function setFilter(value: ReportFilter) {
+    updateWindow(page, { filter: value, table: { ...activeWindow.table, page: 0 } });
+  }
+  function setSearch(value: string) {
+    updateWindow(page, { search: value, table: { ...activeWindow.table, page: 0 } });
+  }
+  const tableViewProps = {
+    view: activeWindow.table,
+    onViewChange: (table: TableView) => updateWindow(page, { table }),
+  };
   const request = useRef(0),
     locked = useRef(false);
   async function load(id = companyId, f = filter) {
@@ -204,27 +244,38 @@ export default function App() {
   }
   useEffect(() => {
     void load(companyId, filter);
-  }, [companyId, filter]);
+  }, [companyId, filter, page]);
   useEffect(() => {
     void api
       .version()
       .then(setVersion)
       .catch(() => {});
   }, []);
-  function open(p: Page) {
+  function open(p: Page, reportFilter?: ReportFilter) {
     if (locked.current || modal) return;
+    if (reportFilter)
+      updateWindow(p, { filter: reportFilter, draft: reportFilter, table: { page: 0, size: 25 } });
+    if (p !== page || reportFilter) {
+      request.current++;
+      setLoading(true);
+    }
     setPage(p);
-    setSearch('');
+    setError('');
+    setSuccess('');
     setTabs((t) => (t.includes(p) ? t : [...t, p]));
   }
   function closeTab(p: Page) {
-    if (locked.current || modal) return;
+    if (locked.current || modal || p === 'home') return;
     const next = tabs.filter((t) => t !== p);
     setTabs(next);
     if (page === p) {
-      setPage(next[next.length - 1] || 'home');
-      setSearch('');
+      open(next[next.length - 1] || 'home');
     }
+    setWindows((current) => {
+      const nextWindows = { ...current };
+      delete nextWindows[p];
+      return nextWindows;
+    });
   }
   function closeModal() {
     if (!locked.current) {
@@ -252,7 +303,7 @@ export default function App() {
     setNewPartnerId('');
     setTabs(['home']);
     setPage('home');
-    setSearch('');
+    setWindows({});
     setError('');
     setSuccess('');
   }
@@ -275,9 +326,11 @@ export default function App() {
       setSuccess(savedMessage);
       if (command.op === 'company.create' && r.id) {
         setPage('home');
+        setWindows({});
         setTabs(['home']);
         setState(null);
-        await load(r.id);
+        request.current++;
+        setLoading(true);
         setCompanyId(r.id);
       } else {
         const refreshed = await load();
@@ -680,596 +733,670 @@ export default function App() {
           Jurnal
         </button>
       </nav>
-      <main className="main-content" aria-busy={loading || busy}>
-        <div className="page-heading">
-          <div className="page-title">
-            <span className="page-icon">
-              <Icon size={21} />
-            </span>
-            <div>
-              <div className="title-line">
-                <h1>{info.title}</h1>
-                {invoicePage && <span className="count-badge">{invoiceRows.length}</span>}
-                {bankPage && <span className="count-badge">{paymentRows.length}</span>}
-              </div>
-              <p>{info.subtitle}</p>
-            </div>
-          </div>
-          <div className="heading-actions">
-            {page === 'home' && (
-              <span className="today-label">
-                {new Intl.DateTimeFormat('az-AZ', {
-                  day: 'numeric',
-                  month: 'long',
-                  year: 'numeric',
-                }).format(new Date())}
+      <main
+        className={`main-content ${page === 'home' ? 'home-workspace' : 'window-workspace'}`}
+        aria-busy={loading || busy}
+      >
+        <section
+          key={page}
+          id={`window-${page}`}
+          role="tabpanel"
+          aria-labelledby={`tab-${page}`}
+          className={`module-window ${page === 'home' ? 'home-window' : ''} ${activeWindow.restored ? 'restored' : ''}`}
+        >
+          <div className="page-heading">
+            <div className="page-title">
+              <span className="page-icon">
+                <Icon size={21} />
               </span>
-            )}
-            {invoicePage && (
-              <>
-                <button
-                  className="button secondary"
-                  disabled={busy || loading}
-                  onClick={() =>
-                    void action(async () => {
-                      await api.template();
-                      return null;
-                    })
-                  }
-                >
-                  <FileDown size={16} />
-                  Excel şablonu
-                </button>
-                <details className="action-dropdown">
-                  <summary className="button secondary">
-                    <FileSpreadsheet size={16} />
-                    İdxal
-                    <ChevronDown size={13} />
-                  </summary>
-                  <div
-                    className="dropdown-menu"
-                    onClick={(e) =>
-                      (e.currentTarget.parentElement as HTMLDetailsElement).removeAttribute('open')
+              <div>
+                <div className="title-line">
+                  <h1>{info.title}</h1>
+                  {invoicePage && <span className="count-badge">{invoiceRows.length}</span>}
+                  {bankPage && <span className="count-badge">{paymentRows.length}</span>}
+                </div>
+                <p>{info.subtitle}</p>
+              </div>
+            </div>
+            <div className="heading-actions">
+              {page === 'home' && (
+                <span className="today-label">
+                  {new Intl.DateTimeFormat('az-AZ', {
+                    day: 'numeric',
+                    month: 'long',
+                    year: 'numeric',
+                  }).format(new Date())}
+                </span>
+              )}
+              {invoicePage && (
+                <>
+                  <button
+                    className="button secondary"
+                    disabled={busy || loading}
+                    onClick={() =>
+                      void action(async () => {
+                        await api.template();
+                        return null;
+                      })
                     }
                   >
-                    <button disabled={busy || loading} onClick={() => void beginImport()}>
-                      Excel-dən yüklə
-                    </button>
-                    <span className="menu-note">DVX canlı bağlantısı hazırlanacaq</span>
-                  </div>
-                </details>
-                <button
-                  className="button primary"
-                  disabled={busy || loading}
-                  onClick={() => setModal({ kind: 'invoice' })}
-                >
-                  <Plus size={17} />
-                  Əlavə et
-                </button>
-              </>
-            )}
-            {bankPage && (
-              <button
-                className="button primary"
-                disabled={busy || loading}
-                onClick={() => setModal({ kind: 'payment' })}
-              >
-                <Plus size={17} />
-                Ödəniş əlavə et
-              </button>
-            )}
-            {partnerPage && (
-              <button
-                className="button primary"
-                disabled={busy || loading}
-                onClick={() => setModal({ kind: 'partner' })}
-              >
-                <Plus size={17} />
-                Kontragent əlavə et
-              </button>
-            )}
-            {page !== 'home' && (
-              <button
-                className={`icon-button refresh ${loading ? 'spinning' : ''}`}
-                aria-label="Məlumatları yenilə"
-                title="Yenilə"
-                onClick={() => void load()}
-                disabled={loading || busy}
-              >
-                <RefreshCw size={17} />
-              </button>
-            )}
-          </div>
-        </div>
-        {!modal && error && <Message onClose={() => setError('')}>{error}</Message>}
-        {success && (
-          <Message type="success" onClose={() => setSuccess('')}>
-            {success}
-          </Message>
-        )}
-        {showFilters && (
-          <form
-            className="filter-bar"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (loading || locked.current) return;
-              if (draft.from > draft.to) {
-                setError('Başlanğıc tarix son tarixdən böyükdür.');
-                return;
-              }
-              setError('');
-              setFilter({ ...draft });
-            }}
-          >
-            <div className="filter-label">
-              <SlidersHorizontal size={15} />
-              Filtr
-            </div>
-            <label className="date-filter">
-              <span>Tarix</span>
-              <input
-                aria-label="Başlanğıc tarix"
-                required
-                type="date"
-                value={draft.from}
-                onChange={(e) => setDraft((s) => ({ ...s, from: e.target.value }))}
-              />
-              <span className="date-separator">—</span>
-              <input
-                aria-label="Son tarix"
-                required
-                type="date"
-                value={draft.to}
-                onChange={(e) => setDraft((s) => ({ ...s, to: e.target.value }))}
-              />
-            </label>
-            {reportPage && (
-              <select
-                aria-label="Hesab üzrə filtr"
-                value={draft.account}
-                onChange={(e) => setDraft((s) => ({ ...s, account: e.target.value }))}
-              >
-                <option value="">Bütün hesablar</option>
-                {state.accounts.map((a) => (
-                  <option key={a.code} value={a.code}>
-                    {a.code} · {a.name}
-                  </option>
-                ))}
-              </select>
-            )}
-            <button type="submit" className="button filter-apply" disabled={loading}>
-              Tətbiq et
-            </button>
-            {!reportPage && (
-              <label className="search-field">
-                <Search size={16} />
-                <input
-                  aria-label="Cədvəldə axtar"
-                  placeholder="Nömrə, kontragent və ya VÖEN…"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                />
-                {search && (
-                  <button type="button" aria-label="Axtarışı təmizlə" onClick={() => setSearch('')}>
-                    <X size={14} />
+                    <FileDown size={16} />
+                    Excel şablonu
                   </button>
-                )}
-              </label>
-            )}
-            <span className="currency-tag">AZN</span>
-          </form>
-        )}
-        {page === 'home' && <Dashboard state={state} open={open} />}
-        {invoicePage && (
-          <DataTable
-            rows={invoiceRows}
-            columns={invoiceColumns}
-            onOpen={(i) => {
-              if (!busy && !loading && i.status === 'posted')
-                setModal({ kind: 'invoice', existing: i });
-            }}
-            empty={
-              <Empty
-                title={page === 'purchase' ? 'Gələn qaimə yoxdur' : 'Gedən qaimə yoxdur'}
-                description="Tarix aralığını yoxlayın və ya ilk qaiməni əlavə edin."
-                action={
+                  <details className="action-dropdown">
+                    <summary className="button secondary">
+                      <FileSpreadsheet size={16} />
+                      İdxal
+                      <ChevronDown size={13} />
+                    </summary>
+                    <div
+                      className="dropdown-menu"
+                      onClick={(e) =>
+                        (e.currentTarget.parentElement as HTMLDetailsElement).removeAttribute(
+                          'open',
+                        )
+                      }
+                    >
+                      <button disabled={busy || loading} onClick={() => void beginImport()}>
+                        Excel-dən yüklə
+                      </button>
+                      <span className="menu-note">DVX canlı bağlantısı hazırlanacaq</span>
+                    </div>
+                  </details>
                   <button
                     className="button primary"
                     disabled={busy || loading}
                     onClick={() => setModal({ kind: 'invoice' })}
                   >
-                    <Plus size={16} />
-                    Qaimə əlavə et
+                    <Plus size={17} />
+                    Əlavə et
                   </button>
-                }
-              />
-            }
-            footer={
-              <tr>
-                <td colSpan={4}>Uçota alınmış sənədlər üzrə cəmi</td>
-                <td className="numeric">
-                  {money(
-                    invoiceRows
-                      .filter((i) => i.status === 'posted')
-                      .reduce((n, i) => n + i.netCents, 0),
-                  )}
-                </td>
-                <td className="numeric">
-                  {money(
-                    invoiceRows
-                      .filter((i) => i.status === 'posted')
-                      .reduce((n, i) => n + i.vatCents, 0),
-                  )}
-                </td>
-                <td className="numeric">
-                  {money(
-                    invoiceRows
-                      .filter((i) => i.status === 'posted')
-                      .reduce((n, i) => n + i.totalCents, 0),
-                  )}
-                </td>
-                <td colSpan={2} />
-              </tr>
-            }
-          />
-        )}
-        {bankPage && (
-          <DataTable
-            rows={paymentRows}
-            columns={paymentColumns}
-            footer={
-              <tr>
-                <td colSpan={5}>Uçota alınmış ödənişlər üzrə cəmi</td>
-                <td className="numeric">
-                  {money(
-                    paymentRows
-                      .filter((p) => p.status === 'posted')
-                      .reduce((n, p) => n + p.amountCents, 0),
-                  )}
-                </td>
-                <td colSpan={2} />
-              </tr>
-            }
-          />
-        )}
-        {page === 'trial' && (
-          <>
-            <div className="report-caption">
-              <span>
-                {day(state.report.from)} — {day(state.report.to)}
-              </span>
-              <span className="report-check">
-                {state.report.account ? (
-                  <>
-                    <BookOpen size={15} />
-                    {state.report.account} hesabının dövriyyəsi
-                  </>
-                ) : totals.debit === totals.credit ? (
-                  <>
-                    <CheckCheck size={16} />
-                    Debet və kredit bərabərdir
-                  </>
-                ) : (
-                  <>Debet–kredit fərqi: {money(totals.debit - totals.credit)}</>
-                )}
-              </span>
-            </div>
-            <DataTable
-              rows={state.trial.map((t) => ({ ...t, id: t.account }))}
-              columns={[
-                {
-                  key: 'account',
-                  label: 'Hesab',
-                  render: (t) => (
-                    <button
-                      className="account-link"
-                      onClick={() => {
-                        setDraft((s) => ({ ...s, account: t.account }));
-                        setFilter((s) => ({ ...s, account: t.account }));
-                        open('ledger');
-                      }}
-                    >
-                      {t.account}
-                    </button>
-                  ),
-                },
-                {
-                  key: 'name',
-                  label: 'Hesabın adı',
-                  className: 'wide-cell',
-                  render: (t) => t.name,
-                },
-                ...(
-                  [
-                    'openingDebit',
-                    'openingCredit',
-                    'debit',
-                    'credit',
-                    'closingDebit',
-                    'closingCredit',
-                  ] as const
-                ).map((key, i) => ({
-                  key,
-                  label: [
-                    'İlk qalıq · Dt',
-                    'İlk qalıq · Kt',
-                    'Dövriyyə · Dt',
-                    'Dövriyyə · Kt',
-                    'Son qalıq · Dt',
-                    'Son qalıq · Kt',
-                  ][i],
-                  numeric: true,
-                  render: (t: State['trial'][number]) => (
-                    <span className={t[key] === 0 ? 'zero-value' : ''}>{money(t[key])}</span>
-                  ),
-                })),
-              ]}
-              footer={
-                <tr>
-                  <td colSpan={2}>YEKUN</td>
-                  {(
-                    [
-                      'openingDebit',
-                      'openingCredit',
-                      'debit',
-                      'credit',
-                      'closingDebit',
-                      'closingCredit',
-                    ] as const
-                  ).map((k) => (
-                    <td className="numeric" key={k}>
-                      {money(totals[k])}
-                    </td>
-                  ))}
-                </tr>
-              }
-              empty={
-                <Empty
-                  title="Bu dövr üzrə uçot yazılışı yoxdur"
-                  description="Qaimə və bank sənədlərini əlavə etdikdə dövriyyə balansı avtomatik formalaşacaq."
-                />
-              }
-            />
-          </>
-        )}
-        {page === 'ledger' && (
-          <DataTable
-            rows={state.ledger}
-            columns={[
-              { key: 'date', label: 'Tarix', render: (r) => day(r.date) },
-              {
-                key: 'doc',
-                label: 'Sənəd №',
-                render: (r) => <span className="mono">{r.sourceNumber}</span>,
-              },
-              {
-                key: 'account',
-                label: 'Hesab',
-                render: (r) => <span className="account-code">{r.account}</span>,
-              },
-              {
-                key: 'partner',
-                label: 'Analitika',
-                className: 'wide-cell',
-                render: (r) => (
-                  <div className="cell-two">
-                    <strong>{r.partnerName || r.subaccount || '—'}</strong>
-                    <small>{r.description}</small>
-                  </div>
-                ),
-              },
-              { key: 'debit', label: 'Debet · AZN', numeric: true, render: (r) => money(r.debit) },
-              {
-                key: 'credit',
-                label: 'Kredit · AZN',
-                numeric: true,
-                render: (r) => money(r.credit),
-              },
-              {
-                key: 'reversal',
-                label: 'Yazılış',
-                render: (r) => (
-                  <span className={`type-label ${r.reversal ? 'reversal' : ''}`}>
-                    {r.reversal ? 'Əks yazılış' : 'İlkin yazılış'}
-                  </span>
-                ),
-              },
-            ]}
-          />
-        )}
-        {partnerPage && (
-          <DataTable
-            rows={state.balances
-              .filter((b) => matches(`${b.name} ${b.taxId}`))
-              .filter((b) =>
-                page === 'receivables'
-                  ? b.receivable !== 0
-                  : page === 'payables'
-                    ? b.payable !== 0
-                    : true,
-              )
-              .map((b) => ({ ...b, id: b.partnerId }))}
-            columns={[
-              {
-                key: 'name',
-                label: 'Kontragentin adı',
-                className: 'wide-cell',
-                render: (b) => <strong>{b.name}</strong>,
-              },
-              { key: 'tax', label: 'VÖEN', render: (b) => <span className="mono">{b.taxId}</span> },
-              ...(page !== 'payables'
-                ? [
-                    {
-                      key: 'receivable',
-                      label: '211 üzrə qalıq · AZN',
-                      numeric: true,
-                      render: (b: State['balances'][number]) => (
-                        <b className={b.receivable < 0 ? 'negative' : ''}>{money(b.receivable)}</b>
-                      ),
-                    },
-                  ]
-                : []),
-              ...(page !== 'receivables'
-                ? [
-                    {
-                      key: 'payable',
-                      label: '531 üzrə qalıq · AZN',
-                      numeric: true,
-                      render: (b: State['balances'][number]) => (
-                        <b className={b.payable < 0 ? 'negative' : ''}>{money(b.payable)}</b>
-                      ),
-                    },
-                  ]
-                : []),
-            ]}
-            empty={
-              <Empty
-                title="Uyğun kontragent tapılmadı"
-                description="Kontragent əlavə edin və ya filtr şərtlərini dəyişin."
-              />
-            }
-          />
-        )}
-        {page === 'accounts' && (
-          <DataTable
-            rows={state.accounts.map((a) => ({ ...a, id: a.code }))}
-            columns={[
-              {
-                key: 'code',
-                label: 'Hesab',
-                render: (a) => <span className="account-code">{a.code}</span>,
-              },
-              { key: 'name', label: 'Hesabın adı', className: 'wide-cell', render: (a) => a.name },
-            ]}
-          />
-        )}
-        {page === 'audit' && (
-          <DataTable
-            rows={state.audit.map((a) => ({ ...a, id: String(a.id) }))}
-            columns={[
-              {
-                key: 'time',
-                label: 'Tarix və saat',
-                render: (a) => new Date(a.createdAt).toLocaleString('az-AZ'),
-              },
-              { key: 'entity', label: 'Bölmə', render: (a) => a.entity },
-              {
-                key: 'action',
-                label: 'Əməliyyat',
-                render: (a) => <span className="type-label">{a.action}</span>,
-              },
-              {
-                key: 'description',
-                label: 'Təfərrüat',
-                className: 'wide-cell',
-                render: (a) => a.description,
-              },
-            ]}
-          />
-        )}
-        {page === 'settings' && (
-          <div className="settings-grid">
-            <section className="panel">
-              <div className="panel-heading">
-                <h2>
-                  <Building2 size={18} />
-                  Şirkət
-                </h2>
-              </div>
-              <div className="settings-body">
-                <h3>{state.company.name}</h3>
-                <p>VÖEN {state.company.taxId}</p>
-                <p>
-                  Uçot valyutası: <b>AZN</b>
-                </p>
-                <button
-                  className="button secondary"
-                  disabled={busy || loading}
-                  onClick={() => setModal({ kind: 'company' })}
-                >
-                  <Plus size={16} />
-                  Yeni şirkət
-                </button>
-              </div>
-            </section>
-            <section className="panel">
-              <div className="panel-heading">
-                <h2>
-                  <LockKeyhole size={18} />
-                  Uçot dövrü
-                </h2>
-              </div>
-              <div className="settings-body">
-                <h3>
-                  {state.company.closedThrough
-                    ? `${day(state.company.closedThrough)} tarixinədək bağlıdır`
-                    : 'Dövr açıqdır'}
-                </h3>
-                <p>Bağlı tarixlərə aid sənədlərə əlavə, düzəliş və ləğv tətbiq edilmir.</p>
-                <button
-                  className="button secondary"
-                  disabled={busy || loading}
-                  onClick={() => {
-                    setCloseDate('');
-                    setModal({ kind: 'period' });
-                  }}
-                >
-                  Dövrü bağla
-                </button>
-              </div>
-            </section>
-            <section className="panel">
-              <div className="panel-heading">
-                <h2>
-                  <ShieldCheck size={18} />
-                  Ehtiyat nüsxə
-                </h2>
-              </div>
-              <div className="settings-body">
-                <p>Uçot bazasının ayrıca nüsxəsini seçdiyiniz qovluqda saxlayın.</p>
+                </>
+              )}
+              {bankPage && (
                 <button
                   className="button primary"
                   disabled={busy || loading}
-                  onClick={() =>
-                    void action(async () => {
-                      const path = await api.backup();
-                      return path ? 'Ehtiyat nüsxə saxlanıldı.' : null;
-                    })
-                  }
+                  onClick={() => setModal({ kind: 'payment' })}
                 >
-                  <Download size={16} />
-                  Nüsxə yarat
+                  <Plus size={17} />
+                  Ödəniş əlavə et
                 </button>
-              </div>
-            </section>
-            <section className="panel">
-              <div className="panel-heading">
-                <h2>
-                  <RefreshCw size={18} />
-                  Meyar ERP 2
-                </h2>
-                <span className="version-label">v{version}</span>
-              </div>
-              <div className="settings-body">
-                <p>
-                  İlkin işlək versiya: qaimələr, borc üzrə bank hesablaşmaları, DBC və əməliyyat
-                  tarixçəsi.
-                </p>
-                <p className="muted">
-                  DVX canlı inteqrasiyası, anbar miqdarı və maya dəyəri, valyuta uçotu, avanslar və
-                  vergi bəyannamələri növbəti mərhələlərdir.
-                </p>
+              )}
+              {partnerPage && (
                 <button
-                  className="button secondary"
+                  className="button primary"
                   disabled={busy || loading}
-                  onClick={() => void action(() => api.checkUpdate())}
+                  onClick={() => setModal({ kind: 'partner' })}
                 >
-                  Yeniləməni yoxla
+                  <Plus size={17} />
+                  Kontragent əlavə et
+                </button>
+              )}
+              {page !== 'home' && (
+                <button
+                  className={`icon-button refresh ${loading ? 'spinning' : ''}`}
+                  aria-label="Məlumatları yenilə"
+                  title="Yenilə"
+                  onClick={() => void load()}
+                  disabled={loading || busy}
+                >
+                  <RefreshCw size={17} />
+                </button>
+              )}
+            </div>
+            {page !== 'home' && (
+              <div className="window-controls">
+                <button
+                  className="icon-button"
+                  aria-label="Pəncərəni aşağı yığ"
+                  title="Aşağı yığ"
+                  onClick={() => open('home')}
+                >
+                  <Minus size={16} />
+                </button>
+                <button
+                  className="icon-button"
+                  aria-label={activeWindow.restored ? 'Pəncərəni böyüt' : 'Pəncərəni kiçilt'}
+                  title={activeWindow.restored ? 'Böyüt' : 'Kiçilt'}
+                  onClick={() => updateWindow(page, { restored: !activeWindow.restored })}
+                >
+                  {activeWindow.restored ? <Maximize2 size={15} /> : <Minimize2 size={15} />}
+                </button>
+                <button
+                  className="icon-button window-close"
+                  aria-label="Aktiv bölməni bağla"
+                  title="Bağla"
+                  onClick={() => closeTab(page)}
+                >
+                  <X size={17} />
                 </button>
               </div>
-            </section>
+            )}
           </div>
-        )}
+          <div className="window-notices">
+            {!modal && error && <Message onClose={() => setError('')}>{error}</Message>}
+            {success && (
+              <Message type="success" onClose={() => setSuccess('')}>
+                {success}
+              </Message>
+            )}
+          </div>
+          <div className={`module-workspace ${showFilters ? 'with-filters' : ''}`}>
+            {showFilters && (
+              <form
+                className="filter-bar"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (loading || locked.current) return;
+                  if (draft.from > draft.to) {
+                    setError('Başlanğıc tarix son tarixdən böyükdür.');
+                    return;
+                  }
+                  setError('');
+                  setFilter({ ...draft });
+                }}
+              >
+                <div className="filter-label">
+                  <SlidersHorizontal size={15} />
+                  Filtr
+                </div>
+                <label className="date-filter">
+                  <span>Tarix</span>
+                  <input
+                    aria-label="Başlanğıc tarix"
+                    required
+                    type="date"
+                    value={draft.from}
+                    onChange={(e) => setDraft((s) => ({ ...s, from: e.target.value }))}
+                  />
+                  <span className="date-separator">—</span>
+                  <input
+                    aria-label="Son tarix"
+                    required
+                    type="date"
+                    value={draft.to}
+                    onChange={(e) => setDraft((s) => ({ ...s, to: e.target.value }))}
+                  />
+                </label>
+                {reportPage && (
+                  <select
+                    aria-label="Hesab üzrə filtr"
+                    value={draft.account}
+                    onChange={(e) => setDraft((s) => ({ ...s, account: e.target.value }))}
+                  >
+                    <option value="">Bütün hesablar</option>
+                    {state.accounts.map((a) => (
+                      <option key={a.code} value={a.code}>
+                        {a.code} · {a.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                <button type="submit" className="button filter-apply" disabled={loading}>
+                  Tətbiq et
+                </button>
+                {!reportPage && (
+                  <label className="search-field">
+                    <Search size={16} />
+                    <input
+                      aria-label="Cədvəldə axtar"
+                      placeholder="Nömrə, kontragent və ya VÖEN…"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                    />
+                    {search && (
+                      <button
+                        type="button"
+                        aria-label="Axtarışı təmizlə"
+                        onClick={() => setSearch('')}
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
+                  </label>
+                )}
+                <span className="currency-tag">AZN</span>
+              </form>
+            )}
+            <div
+              className={`window-body ${page === 'home' || page === 'settings' ? 'scrollable' : ''}`}
+            >
+              {page === 'home' && <Dashboard state={state} open={open} />}
+              {invoicePage && (
+                <DataTable
+                  {...tableViewProps}
+                  rows={invoiceRows}
+                  columns={invoiceColumns}
+                  onOpen={(i) => {
+                    if (!busy && !loading && i.status === 'posted')
+                      setModal({ kind: 'invoice', existing: i });
+                  }}
+                  empty={
+                    <Empty
+                      title={page === 'purchase' ? 'Gələn qaimə yoxdur' : 'Gedən qaimə yoxdur'}
+                      description="Tarix aralığını yoxlayın və ya ilk qaiməni əlavə edin."
+                      action={
+                        <button
+                          className="button primary"
+                          disabled={busy || loading}
+                          onClick={() => setModal({ kind: 'invoice' })}
+                        >
+                          <Plus size={16} />
+                          Qaimə əlavə et
+                        </button>
+                      }
+                    />
+                  }
+                  footer={
+                    <tr>
+                      <td colSpan={4}>Uçota alınmış sənədlər üzrə cəmi</td>
+                      <td className="numeric">
+                        {money(
+                          invoiceRows
+                            .filter((i) => i.status === 'posted')
+                            .reduce((n, i) => n + i.netCents, 0),
+                        )}
+                      </td>
+                      <td className="numeric">
+                        {money(
+                          invoiceRows
+                            .filter((i) => i.status === 'posted')
+                            .reduce((n, i) => n + i.vatCents, 0),
+                        )}
+                      </td>
+                      <td className="numeric">
+                        {money(
+                          invoiceRows
+                            .filter((i) => i.status === 'posted')
+                            .reduce((n, i) => n + i.totalCents, 0),
+                        )}
+                      </td>
+                      <td colSpan={2} />
+                    </tr>
+                  }
+                />
+              )}
+              {bankPage && (
+                <DataTable
+                  {...tableViewProps}
+                  rows={paymentRows}
+                  columns={paymentColumns}
+                  footer={
+                    <tr>
+                      <td colSpan={5}>Uçota alınmış ödənişlər üzrə cəmi</td>
+                      <td className="numeric">
+                        {money(
+                          paymentRows
+                            .filter((p) => p.status === 'posted')
+                            .reduce((n, p) => n + p.amountCents, 0),
+                        )}
+                      </td>
+                      <td colSpan={2} />
+                    </tr>
+                  }
+                />
+              )}
+              {page === 'trial' && (
+                <>
+                  <div className="report-caption">
+                    <span>
+                      {day(state.report.from)} — {day(state.report.to)}
+                    </span>
+                    <span className="report-check">
+                      {state.report.account ? (
+                        <>
+                          <BookOpen size={15} />
+                          {state.report.account} hesabının dövriyyəsi
+                        </>
+                      ) : totals.debit === totals.credit ? (
+                        <>
+                          <CheckCheck size={16} />
+                          Debet və kredit bərabərdir
+                        </>
+                      ) : (
+                        <>Debet–kredit fərqi: {money(totals.debit - totals.credit)}</>
+                      )}
+                    </span>
+                  </div>
+                  <DataTable
+                    {...tableViewProps}
+                    rows={state.trial.map((t) => ({ ...t, id: t.account }))}
+                    columns={[
+                      {
+                        key: 'account',
+                        label: 'Hesab',
+                        render: (t) => (
+                          <button
+                            className="account-link"
+                            onClick={() => {
+                              open('ledger', { ...filter, account: t.account });
+                            }}
+                          >
+                            {t.account}
+                          </button>
+                        ),
+                      },
+                      {
+                        key: 'name',
+                        label: 'Hesabın adı',
+                        className: 'wide-cell',
+                        render: (t) => t.name,
+                      },
+                      ...(
+                        [
+                          'openingDebit',
+                          'openingCredit',
+                          'debit',
+                          'credit',
+                          'closingDebit',
+                          'closingCredit',
+                        ] as const
+                      ).map((key, i) => ({
+                        key,
+                        label: [
+                          'İlk qalıq · Dt',
+                          'İlk qalıq · Kt',
+                          'Dövriyyə · Dt',
+                          'Dövriyyə · Kt',
+                          'Son qalıq · Dt',
+                          'Son qalıq · Kt',
+                        ][i],
+                        numeric: true,
+                        render: (t: State['trial'][number]) => (
+                          <span className={t[key] === 0 ? 'zero-value' : ''}>{money(t[key])}</span>
+                        ),
+                      })),
+                    ]}
+                    footer={
+                      <tr>
+                        <td colSpan={2}>YEKUN</td>
+                        {(
+                          [
+                            'openingDebit',
+                            'openingCredit',
+                            'debit',
+                            'credit',
+                            'closingDebit',
+                            'closingCredit',
+                          ] as const
+                        ).map((k) => (
+                          <td className="numeric" key={k}>
+                            {money(totals[k])}
+                          </td>
+                        ))}
+                      </tr>
+                    }
+                    empty={
+                      <Empty
+                        title="Bu dövr üzrə uçot yazılışı yoxdur"
+                        description="Qaimə və bank sənədlərini əlavə etdikdə dövriyyə balansı avtomatik formalaşacaq."
+                      />
+                    }
+                  />
+                </>
+              )}
+              {page === 'ledger' && (
+                <DataTable
+                  {...tableViewProps}
+                  rows={state.ledger}
+                  columns={[
+                    { key: 'date', label: 'Tarix', render: (r) => day(r.date) },
+                    {
+                      key: 'doc',
+                      label: 'Sənəd №',
+                      render: (r) => <span className="mono">{r.sourceNumber}</span>,
+                    },
+                    {
+                      key: 'account',
+                      label: 'Hesab',
+                      render: (r) => <span className="account-code">{r.account}</span>,
+                    },
+                    {
+                      key: 'partner',
+                      label: 'Analitika',
+                      className: 'wide-cell',
+                      render: (r) => (
+                        <div className="cell-two">
+                          <strong>{r.partnerName || r.subaccount || '—'}</strong>
+                          <small>{r.description}</small>
+                        </div>
+                      ),
+                    },
+                    {
+                      key: 'debit',
+                      label: 'Debet · AZN',
+                      numeric: true,
+                      render: (r) => money(r.debit),
+                    },
+                    {
+                      key: 'credit',
+                      label: 'Kredit · AZN',
+                      numeric: true,
+                      render: (r) => money(r.credit),
+                    },
+                    {
+                      key: 'reversal',
+                      label: 'Yazılış',
+                      render: (r) => (
+                        <span className={`type-label ${r.reversal ? 'reversal' : ''}`}>
+                          {r.reversal ? 'Əks yazılış' : 'İlkin yazılış'}
+                        </span>
+                      ),
+                    },
+                  ]}
+                />
+              )}
+              {partnerPage && (
+                <DataTable
+                  {...tableViewProps}
+                  rows={state.balances
+                    .filter((b) => matches(`${b.name} ${b.taxId}`))
+                    .filter((b) =>
+                      page === 'receivables'
+                        ? b.receivable !== 0
+                        : page === 'payables'
+                          ? b.payable !== 0
+                          : true,
+                    )
+                    .map((b) => ({ ...b, id: b.partnerId }))}
+                  columns={[
+                    {
+                      key: 'name',
+                      label: 'Kontragentin adı',
+                      className: 'wide-cell',
+                      render: (b) => <strong>{b.name}</strong>,
+                    },
+                    {
+                      key: 'tax',
+                      label: 'VÖEN',
+                      render: (b) => <span className="mono">{b.taxId}</span>,
+                    },
+                    ...(page !== 'payables'
+                      ? [
+                          {
+                            key: 'receivable',
+                            label: '211 üzrə qalıq · AZN',
+                            numeric: true,
+                            render: (b: State['balances'][number]) => (
+                              <b className={b.receivable < 0 ? 'negative' : ''}>
+                                {money(b.receivable)}
+                              </b>
+                            ),
+                          },
+                        ]
+                      : []),
+                    ...(page !== 'receivables'
+                      ? [
+                          {
+                            key: 'payable',
+                            label: '531 üzrə qalıq · AZN',
+                            numeric: true,
+                            render: (b: State['balances'][number]) => (
+                              <b className={b.payable < 0 ? 'negative' : ''}>{money(b.payable)}</b>
+                            ),
+                          },
+                        ]
+                      : []),
+                  ]}
+                  empty={
+                    <Empty
+                      title="Uyğun kontragent tapılmadı"
+                      description="Kontragent əlavə edin və ya filtr şərtlərini dəyişin."
+                    />
+                  }
+                />
+              )}
+              {page === 'accounts' && (
+                <DataTable
+                  {...tableViewProps}
+                  rows={state.accounts.map((a) => ({ ...a, id: a.code }))}
+                  columns={[
+                    {
+                      key: 'code',
+                      label: 'Hesab',
+                      render: (a) => <span className="account-code">{a.code}</span>,
+                    },
+                    {
+                      key: 'name',
+                      label: 'Hesabın adı',
+                      className: 'wide-cell',
+                      render: (a) => a.name,
+                    },
+                  ]}
+                />
+              )}
+              {page === 'audit' && (
+                <DataTable
+                  {...tableViewProps}
+                  rows={state.audit.map((a) => ({ ...a, id: String(a.id) }))}
+                  columns={[
+                    {
+                      key: 'time',
+                      label: 'Tarix və saat',
+                      render: (a) => new Date(a.createdAt).toLocaleString('az-AZ'),
+                    },
+                    { key: 'entity', label: 'Bölmə', render: (a) => a.entity },
+                    {
+                      key: 'action',
+                      label: 'Əməliyyat',
+                      render: (a) => <span className="type-label">{a.action}</span>,
+                    },
+                    {
+                      key: 'description',
+                      label: 'Təfərrüat',
+                      className: 'wide-cell',
+                      render: (a) => a.description,
+                    },
+                  ]}
+                />
+              )}
+              {page === 'settings' && (
+                <div className="settings-grid">
+                  <section className="panel">
+                    <div className="panel-heading">
+                      <h2>
+                        <Building2 size={18} />
+                        Şirkət
+                      </h2>
+                    </div>
+                    <div className="settings-body">
+                      <h3>{state.company.name}</h3>
+                      <p>VÖEN {state.company.taxId}</p>
+                      <p>
+                        Uçot valyutası: <b>AZN</b>
+                      </p>
+                      <button
+                        className="button secondary"
+                        disabled={busy || loading}
+                        onClick={() => setModal({ kind: 'company' })}
+                      >
+                        <Plus size={16} />
+                        Yeni şirkət
+                      </button>
+                    </div>
+                  </section>
+                  <section className="panel">
+                    <div className="panel-heading">
+                      <h2>
+                        <LockKeyhole size={18} />
+                        Uçot dövrü
+                      </h2>
+                    </div>
+                    <div className="settings-body">
+                      <h3>
+                        {state.company.closedThrough
+                          ? `${day(state.company.closedThrough)} tarixinədək bağlıdır`
+                          : 'Dövr açıqdır'}
+                      </h3>
+                      <p>Bağlı tarixlərə aid sənədlərə əlavə, düzəliş və ləğv tətbiq edilmir.</p>
+                      <button
+                        className="button secondary"
+                        disabled={busy || loading}
+                        onClick={() => {
+                          setCloseDate('');
+                          setModal({ kind: 'period' });
+                        }}
+                      >
+                        Dövrü bağla
+                      </button>
+                    </div>
+                  </section>
+                  <section className="panel">
+                    <div className="panel-heading">
+                      <h2>
+                        <ShieldCheck size={18} />
+                        Ehtiyat nüsxə
+                      </h2>
+                    </div>
+                    <div className="settings-body">
+                      <p>Uçot bazasının ayrıca nüsxəsini seçdiyiniz qovluqda saxlayın.</p>
+                      <button
+                        className="button primary"
+                        disabled={busy || loading}
+                        onClick={() =>
+                          void action(async () => {
+                            const path = await api.backup();
+                            return path ? 'Ehtiyat nüsxə saxlanıldı.' : null;
+                          })
+                        }
+                      >
+                        <Download size={16} />
+                        Nüsxə yarat
+                      </button>
+                    </div>
+                  </section>
+                  <section className="panel">
+                    <div className="panel-heading">
+                      <h2>
+                        <RefreshCw size={18} />
+                        Meyar ERP 2
+                      </h2>
+                      <span className="version-label">v{version}</span>
+                    </div>
+                    <div className="settings-body">
+                      <p>
+                        İlkin işlək versiya: qaimələr, borc üzrə bank hesablaşmaları, DBC və
+                        əməliyyat tarixçəsi.
+                      </p>
+                      <p className="muted">
+                        DVX canlı inteqrasiyası, anbar miqdarı və maya dəyəri, valyuta uçotu,
+                        avanslar və vergi bəyannamələri növbəti mərhələlərdir.
+                      </p>
+                      <button
+                        className="button secondary"
+                        disabled={busy || loading}
+                        onClick={() => void action(() => api.checkUpdate())}
+                      >
+                        Yeniləməni yoxla
+                      </button>
+                    </div>
+                  </section>
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
       </main>
       <footer className="workspace-footer">
         <div className="workspace-tabs" role="tablist" aria-label="Açıq pəncərələr">
@@ -1277,7 +1404,13 @@ export default function App() {
             const T = pages[t].icon;
             return (
               <div className={`workspace-tab ${page === t ? 'active' : ''}`} key={t}>
-                <button role="tab" aria-selected={page === t} onClick={() => open(t)}>
+                <button
+                  id={`tab-${t}`}
+                  role="tab"
+                  aria-controls={page === t ? `window-${t}` : undefined}
+                  aria-selected={page === t}
+                  onClick={() => open(t)}
+                >
                   <T size={14} />
                   {pages[t].title}
                 </button>

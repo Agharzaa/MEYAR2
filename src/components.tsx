@@ -116,25 +116,32 @@ export interface Column<T> {
   numeric?: boolean;
   className?: string;
 }
+export type TableView = { page: number; size: number };
 export function DataTable<T extends { id: string }>({
   rows,
   columns,
   empty,
   onOpen,
   footer,
+  view,
+  onViewChange,
 }: {
   rows: T[];
   columns: Column<T>[];
   empty?: ReactNode;
   onOpen?: (row: T) => void;
   footer?: ReactNode;
+  view?: TableView;
+  onViewChange?: (view: TableView) => void;
 }) {
-  const [page, setPage] = useState(0),
-    [size, setSize] = useState(25);
+  const [localView, setLocalView] = useState<TableView>({ page: 0, size: 25 });
+  const { page, size } = view ?? localView;
+  const changeView = onViewChange ?? setLocalView;
+  const setPage = (next: number) => changeView({ page: next, size });
   const pages = Math.max(1, Math.ceil(rows.length / size));
   const current = Math.min(page, pages - 1);
   const visible = rows.slice(current * size, (current + 1) * size);
-  useEffect(() => setPage(0), [rows.length]);
+
   return (
     <div className="data-table">
       <div className="table-scroll">
@@ -176,8 +183,7 @@ export function DataTable<T extends { id: string }>({
               aria-label="Sətirlər səhifədə"
               value={size}
               onChange={(e) => {
-                setSize(Number(e.target.value));
-                setPage(0);
+                changeView({ size: Number(e.target.value), page: 0 });
               }}
             >
               <option>25</option>

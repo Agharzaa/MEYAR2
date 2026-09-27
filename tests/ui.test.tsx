@@ -357,3 +357,107 @@ test('DOM + SQLite: rejected input preserves draft and in-flight double submit p
     store.close();
   }
 });
+
+test('Module windows keep independent filters, searches and pagination; minimize preserves and close resets', async () => {
+  const store = new Store(':memory:');
+  const { id: companyId } = store.call({
+    op: 'company.create',
+    name: 'Window Test',
+    taxId: '1234567890',
+  }) as { id: string };
+  const { id: partnerId } = store.call({
+    op: 'partner.save',
+    companyId,
+    name: 'Window Partner',
+    taxId: '0123456789',
+  }) as { id: string };
+  const year = new Date().getFullYear();
+  for (let i = 1; i <= 65; i++)
+    store.call({
+      op: 'invoice.save',
+      companyId,
+      invoice: {
+        number: `WINDOW-${String(i).padStart(3, '0')}`,
+        date: `${year}-01-01`,
+        partnerId,
+        direction: 'purchase',
+        kind: 'service',
+        net: '100',
+        vat: '18',
+        subaccount: 'Rabitə',
+        description: '',
+      },
+    });
+  window.meyar = {
+    call: async (command) => store.call(command),
+    backup: async () => null,
+    importFile: async () => null,
+    template: async () => null,
+    checkUpdate: async () => 'Test',
+    version: async () => 'test',
+  };
+  const user = userEvent.setup();
+  const ready = () =>
+    waitFor(() => assert.equal(screen.getByRole('main').getAttribute('aria-busy'), 'false'));
+  const value = (name: string) => (screen.getByLabelText(name) as HTMLInputElement).value;
+  try {
+    render(<App />);
+    await screen.findByRole('combobox', { name: 'Aktiv şirkət' });
+    await user.click(screen.getByRole('button', { name: 'Gələn qaimələr', exact: true }));
+    await ready();
+    await user.type(screen.getByLabelText('Cədvəldə axtar'), 'WINDOW');
+    await user.selectOptions(screen.getByLabelText('Sətirlər səhifədə'), '50');
+    await user.click(screen.getByRole('button', { name: 'Növbəti səhifə' }));
+    assert.ok(screen.getByText('2 / 2'));
+    fireEvent.change(screen.getByLabelText('Başlanğıc tarix'), {
+      target: { value: `${year}-01-02` },
+    });
+    await user.click(screen.getByRole('button', { name: 'Pəncərəni kiçilt' }));
+    assert.ok(screen.getByRole('tabpanel').classList.contains('restored'));
+    await user.click(screen.getByRole('button', { name: 'Gedən qaimələr', exact: true }));
+    await ready();
+    assert.equal(value('Cədvəldə axtar'), '');
+    assert.equal(value('Sətirlər səhifədə'), '25');
+    assert.equal(value('Başlanğıc tarix'), `${year}-01-01`);
+    await user.type(screen.getByLabelText('Cədvəldə axtar'), 'SALE');
+    await user.click(screen.getByRole('tab', { name: 'Gələn qaimələr', exact: true }));
+    await ready();
+    assert.equal(value('Cədvəldə axtar'), 'WINDOW');
+    assert.equal(value('Sətirlər səhifədə'), '50');
+    assert.equal(value('Başlanğıc tarix'), `${year}-01-02`);
+    assert.ok(screen.getByText('2 / 2'));
+    assert.ok(screen.getByRole('tabpanel').classList.contains('restored'));
+    await user.click(screen.getByRole('button', { name: 'Pəncərəni aşağı yığ' }));
+    await ready();
+    assert.equal(
+      screen.getByRole('tab', { name: 'İş masası' }).getAttribute('aria-selected'),
+      'true',
+    );
+    await user.click(screen.getByRole('tab', { name: 'Gələn qaimələr', exact: true }));
+    await ready();
+    assert.equal(value('Cədvəldə axtar'), 'WINDOW');
+    await user.click(screen.getByRole('button', { name: 'Aktiv bölməni bağla' }));
+    await ready();
+    assert.equal(screen.queryByRole('tab', { name: 'Gələn qaimələr', exact: true }), null);
+    assert.equal(value('Cədvəldə axtar'), 'SALE');
+    await user.click(screen.getByRole('button', { name: 'Gələn qaimələr', exact: true }));
+    await ready();
+    assert.equal(value('Cədvəldə axtar'), '');
+    assert.equal(value('Sətirlər səhifədə'), '25');
+    assert.equal(value('Başlanğıc tarix'), `${year}-01-01`);
+    assert.equal(screen.getByRole('tabpanel').classList.contains('restored'), false);
+
+    // Report drill-down opens the ledger without replacing the trial balance filter.
+    await user.click(screen.getByRole('button', { name: 'Dövriyyə balansı', exact: true }));
+    await ready();
+    await user.click(screen.getByRole('button', { name: '721', exact: true }));
+    await ready();
+    assert.equal(value('Hesab üzrə filtr'), '721');
+    await user.click(screen.getByRole('tab', { name: 'Dövriyyə balans cədvəli', exact: true }));
+    await ready();
+    assert.equal(value('Hesab üzrə filtr'), '');
+  } finally {
+    cleanup();
+    store.close();
+  }
+});

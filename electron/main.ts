@@ -84,7 +84,7 @@ function createWindow() {
     minWidth: 1050,
     minHeight: 700,
     show: false,
-    backgroundColor: '#f5f8f6',
+    backgroundColor: '#e8e5dc',
     title: 'Meyar ERP 2',
     autoHideMenuBar: true,
     webPreferences: {
