@@ -2318,3 +2318,62 @@ textarea,
     padding: 4px;
   }
 }
+
+/* Independent OS windows share accounting state, never another window's form. */
+.native-app .main-content.window-workspace {
+  padding: 0;
+}
+.native-app .module-window {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.native-window-bar .workspace-tab > button:first-child {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+}
+.native-document-shell {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: #fffdf7;
+  color: var(--ink);
+}
+.native-document-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px;
+  background: #f8e9ad;
+  border-bottom: 1px solid #d2c397;
+  gap: 12px;
+}
+.native-document-heading h1 {
+  font-size: 18px;
+}
+.native-document-heading p {
+  font-size: 12px;
+  margin-top: 5px;
+  color: #645a3e;
+}
+.native-document-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.native-document-body > form {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.native-document-body .modal-actions {
+  margin-top: auto;
+  position: sticky;
+  bottom: 0;
+}
+.native-document-shell > .message {
+  flex-shrink: 0;
+  margin: 10px 16px 0;
+}

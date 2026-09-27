@@ -158,7 +158,10 @@ test('identical invoice retries are no-ops; edits reverse previous posting once'
   const before = f.state();
   assert.deepEqual(f.invoice(), { id: first.id, unchanged: 1 });
   assert.deepEqual(f.state(), before);
-  assert.deepEqual(f.invoice({ net: '200', vat: '36' }), { id: first.id, updated: 1 });
+  assert.deepEqual(f.invoice({ id: first.id, expectedVersion: 1, net: '200', vat: '36' }), {
+    id: first.id,
+    updated: 1,
+  });
   const s = f.state();
   balanced(s);
   assert.equal(s.invoices.length, 1);
@@ -169,7 +172,7 @@ test('identical invoice retries are no-ops; edits reverse previous posting once'
 test('invoice edits can move date while maintaining accurate opening and period turnover', (t) => {
   const f = fixture(t);
   const { id } = f.invoice();
-  f.invoice({ id, date: '2026-02-10', net: '200', vat: '36' });
+  f.invoice({ id, expectedVersion: 1, date: '2026-02-10', net: '200', vat: '36' });
   const january = f.state('2026-01-01', '2026-01-31');
   balanced(january);
   assert.equal(january.balances[0].receivable, 0);
@@ -194,7 +197,7 @@ test('linked payments enforce partner, direction, date and remaining balance', (
   balanced(s);
   assert.equal(s.invoices[0].paidCents, 11800);
   assert.equal(s.balances[0].receivable, 0);
-  assert.throws(() => f.invoice({ net: '200' }), /əlaqəli/);
+  assert.throws(() => f.invoice({ id: invoiceId, expectedVersion: 1, net: '200' }), /əlaqəli/);
   assert.throws(
     () => f.mutate({ op: 'invoice.cancel', companyId: f.companyId, id: invoiceId, reason: 'Səhv' }),
     /əlaqəli/,
@@ -313,8 +316,8 @@ test('period close blocks historical insert/edit/cancel and allows exact no-op r
   const before = f.state();
   assert.deepEqual(f.invoice(), { id, unchanged: 1 });
   assert.deepEqual(f.payment(), { id: pay, unchanged: 1 });
-  assert.throws(() => f.invoice({ net: '200' }), /bağlanıb/);
-  assert.throws(() => f.invoice({ id, date: '2026-02-01' }), /bağlanıb/);
+  assert.throws(() => f.invoice({ id, expectedVersion: 1, net: '200' }), /bağlanıb/);
+  assert.throws(() => f.invoice({ id, expectedVersion: 1, date: '2026-02-01' }), /bağlanıb/);
   assert.throws(() => f.invoice({ number: 'NEW' }), /bağlanıb/);
   assert.throws(
     () => f.mutate({ op: 'invoice.cancel', companyId: f.companyId, id, reason: 'Səhv' }),
@@ -393,4 +396,34 @@ test('consistent backup reopens with identical balances and immutable audit', as
   } finally {
     reopened.close();
   }
+});
+
+test('stale editors and manual source-key collisions never overwrite postings or audit', (t) => {
+  const f = fixture(t);
+  const { id } = f.invoice();
+  f.invoice({ id, expectedVersion: 1, net: '200', vat: '36' });
+  const before = f.state();
+  for (const expectedVersion of [1, undefined, 0, 2.5, NaN]) {
+    assert.throws(() => f.invoice({ id, expectedVersion, net: '300' }), /başqa pəncərədə/);
+    assert.deepEqual(f.state(), before);
+  }
+  assert.throws(() => f.invoice({ net: '300' }), /artıq mövcuddur/);
+  assert.deepEqual(f.state(), before);
+  f.invoice({ id, expectedVersion: 2, net: '300', vat: '54' });
+  assert.equal(f.state().invoices[0].version, 3);
+  assert.equal(f.state().balances[0].receivable, 35400);
+  balanced(f.state());
+});
+test('an import invalidates an open editor while retaining atomic balanced postings', (t) => {
+  const f = fixture(t);
+  f.mutate({ op: 'invoice.import', companyId: f.companyId, rows: [importRow()] });
+  const opened = f.state().invoices[0];
+  f.mutate({ op: 'invoice.import', companyId: f.companyId, rows: [importRow({ net: '250' })] });
+  const before = f.state();
+  assert.throws(
+    () => f.invoice({ ...opened, expectedVersion: opened.version, net: '300' }),
+    /başqa pəncərədə/,
+  );
+  assert.deepEqual(f.state(), before);
+  balanced(before);
 });

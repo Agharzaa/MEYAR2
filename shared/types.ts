@@ -1,3 +1,4 @@
+import type { WindowBridge } from './windows.js';
 export type Direction = 'purchase' | 'sale';
 export type PaymentDirection = 'in' | 'out';
 export interface Company {
@@ -13,6 +14,7 @@ export interface Partner {
 }
 export interface InvoiceInput {
   id?: string;
+  expectedVersion?: number;
   number: string;
   date: string;
   partnerId: string;
@@ -133,6 +135,7 @@ export interface MutationResult {
   unchanged?: number;
 }
 export interface DesktopAPI {
+  windows?: WindowBridge;
   call(command: Command): Promise<State | MutationResult>;
   backup(): Promise<string | null>;
   importFile(direction: Direction): Promise<ImportRow[] | null>;

@@ -45,6 +45,8 @@ import type {
   State,
 } from '../shared/types';
 import { api } from './api';
+import type { Page, WindowContext } from '../shared/windows';
+import { NativeWindowBar } from './NativeWindows';
 import {
   DataTable,
   Empty,
@@ -58,20 +60,6 @@ import {
   type TableView,
 } from './components';
 import { IdentityForm, InvoiceForm, PaymentForm } from './forms';
-type Page =
-  | 'home'
-  | 'purchase'
-  | 'sale'
-  | 'bank-in'
-  | 'bank-out'
-  | 'trial'
-  | 'ledger'
-  | 'partners'
-  | 'receivables'
-  | 'payables'
-  | 'accounts'
-  | 'audit'
-  | 'settings';
 const pages: Record<Page, { title: string; icon: typeof Home; subtitle: string }> = {
   home: {
     title: 'İş masası',
@@ -183,12 +171,23 @@ function Message({
     </div>
   );
 }
-export default function App() {
+export default function App({ nativeContext }: { nativeContext?: WindowContext } = {}) {
+  const desktop = window.meyar?.windows;
   const [state, setState] = useState<State | null>(null),
-    [companyId, setCompanyId] = useState(''),
-    [page, setPage] = useState<Page>('home'),
+    [companyId, setCompanyId] = useState(nativeContext?.companyId ?? ''),
+    [page, setPage] = useState<Page>(nativeContext?.page ?? 'home'),
     [tabs, setTabs] = useState<Page[]>(['home']),
-    [windows, setWindows] = useState<Partial<Record<Page, WindowState>>>({}),
+    [windows, setWindows] = useState<Partial<Record<Page, WindowState>>>(
+      nativeContext?.filter
+        ? {
+            [nativeContext.page]: {
+              ...initialWindow,
+              filter: nativeContext.filter,
+              draft: nativeContext.filter,
+            },
+          }
+        : {},
+    ),
     [modal, setModal] = useState<ModalState>(null),
     [partnerOverInvoice, setPartnerOverInvoice] = useState(false),
     [newPartnerId, setNewPartnerId] = useState(''),
@@ -196,7 +195,7 @@ export default function App() {
     [loading, setLoading] = useState(true),
     [error, setError] = useState(''),
     [success, setSuccess] = useState(''),
-    [version, setVersion] = useState('0.1.1'),
+    [version, setVersion] = useState('0.1.2'),
     [reason, setReason] = useState(''),
     [closeDate, setCloseDate] = useState('');
   const activeWindow = windows[page] ?? initialWindow;
@@ -253,6 +252,12 @@ export default function App() {
   }, []);
   function open(p: Page, reportFilter?: ReportFilter) {
     if (locked.current || modal) return;
+    if (desktop && nativeContext) {
+      void desktop
+        .open({ page: p, companyId: state?.company.id ?? companyId, filter: reportFilter })
+        .catch((e) => setError(e.message));
+      return;
+    }
     if (reportFilter)
       updateWindow(p, { filter: reportFilter, draft: reportFilter, table: { page: 0, size: 25 } });
     if (p !== page || reportFilter) {
@@ -264,6 +269,37 @@ export default function App() {
     setSuccess('');
     setTabs((t) => (t.includes(p) ? t : [...t, p]));
   }
+  function openInvoice(existing?: Invoice) {
+    if (desktop && nativeContext)
+      void desktop
+        .open({
+          page: existing?.direction ?? (page === 'purchase' ? 'purchase' : 'sale'),
+          companyId: state!.company.id,
+          form: 'invoice',
+          documentId: existing?.id,
+        })
+        .catch((e) => setError(e.message));
+    else setModal({ kind: 'invoice', existing });
+  }
+  function openPayment() {
+    if (desktop && nativeContext)
+      void desktop
+        .open({
+          page: page === 'bank-in' ? 'bank-in' : 'bank-out',
+          companyId: state!.company.id,
+          form: 'payment',
+        })
+        .catch((e) => setError(e.message));
+    else setModal({ kind: 'payment' });
+  }
+  useEffect(
+    () =>
+      desktop?.onDataChanged((id) => {
+        if (!locked.current && (id === (state?.company.id ?? companyId) || page === 'home'))
+          void load();
+      }),
+    [desktop, companyId, filter, page, state?.company.id],
+  );
   function closeTab(p: Page) {
     if (locked.current || modal || p === 'home') return;
     const next = tabs.filter((t) => t !== p);
@@ -486,7 +522,7 @@ export default function App() {
       render: (i) => (
         <button
           className="text-link mono"
-          onClick={() => setModal({ kind: 'invoice', existing: i })}
+          onClick={() => openInvoice(i)}
           disabled={busy || loading || i.status === 'cancelled'}
         >
           {i.number}
@@ -534,7 +570,7 @@ export default function App() {
               disabled={busy || loading}
               title="Düzəliş et"
               aria-label={`Düzəliş et ${i.number}`}
-              onClick={() => setModal({ kind: 'invoice', existing: i })}
+              onClick={() => openInvoice(i)}
             >
               <SquarePen size={15} />
             </button>
@@ -634,7 +670,7 @@ export default function App() {
     );
   }
   return (
-    <div className="app-shell">
+    <div className={`app-shell ${nativeContext ? 'native-app' : ''}`}>
       <header className="app-header">
         <button className="brand-lockup" aria-label="Meyar iş masası" onClick={() => open('home')}>
           <div className="brand-mark">M</div>
@@ -649,7 +685,7 @@ export default function App() {
           <select
             aria-label="Aktiv şirkət"
             value={state.company.id}
-            disabled={busy || loading}
+            disabled={busy || loading || !!nativeContext?.companyId}
             onChange={(e) => switchCompany(e.target.value)}
           >
             {state.companies.map((c) => (
@@ -659,6 +695,17 @@ export default function App() {
             ))}
           </select>
           <span className="company-tax">VÖEN {state.company.taxId}</span>
+          {nativeContext && !nativeContext.companyId && (
+            <button
+              className="icon-button"
+              title="Yeni şirkət"
+              aria-label="Yeni şirkət"
+              disabled={busy || loading}
+              onClick={() => setModal({ kind: 'company' })}
+            >
+              <Plus size={17} />
+            </button>
+          )}
         </div>
         <div className="header-right">
           <span className="local-state">
@@ -741,7 +788,8 @@ export default function App() {
           key={page}
           id={`window-${page}`}
           role="tabpanel"
-          aria-labelledby={`tab-${page}`}
+          aria-labelledby={nativeContext ? undefined : `tab-${page}`}
+          aria-label={nativeContext ? info.title : undefined}
           className={`module-window ${page === 'home' ? 'home-window' : ''} ${activeWindow.restored ? 'restored' : ''}`}
         >
           <div className="page-heading">
@@ -806,7 +854,7 @@ export default function App() {
                   <button
                     className="button primary"
                     disabled={busy || loading}
-                    onClick={() => setModal({ kind: 'invoice' })}
+                    onClick={() => openInvoice()}
                   >
                     <Plus size={17} />
                     Əlavə et
@@ -817,7 +865,7 @@ export default function App() {
                 <button
                   className="button primary"
                   disabled={busy || loading}
-                  onClick={() => setModal({ kind: 'payment' })}
+                  onClick={() => openPayment()}
                 >
                   <Plus size={17} />
                   Ödəniş əlavə et
@@ -851,15 +899,31 @@ export default function App() {
                   className="icon-button"
                   aria-label="Pəncərəni aşağı yığ"
                   title="Aşağı yığ"
-                  onClick={() => open('home')}
+                  onClick={() => (nativeContext ? void desktop?.minimize() : open('home'))}
                 >
                   <Minus size={16} />
                 </button>
                 <button
                   className="icon-button"
-                  aria-label={activeWindow.restored ? 'Pəncərəni böyüt' : 'Pəncərəni kiçilt'}
-                  title={activeWindow.restored ? 'Böyüt' : 'Kiçilt'}
-                  onClick={() => updateWindow(page, { restored: !activeWindow.restored })}
+                  aria-label={
+                    nativeContext
+                      ? 'Böyüt / əvvəlki ölçü'
+                      : activeWindow.restored
+                        ? 'Pəncərəni böyüt'
+                        : 'Pəncərəni kiçilt'
+                  }
+                  title={
+                    nativeContext
+                      ? 'Böyüt / əvvəlki ölçü'
+                      : activeWindow.restored
+                        ? 'Böyüt'
+                        : 'Kiçilt'
+                  }
+                  onClick={() =>
+                    nativeContext
+                      ? void desktop?.maximize()
+                      : updateWindow(page, { restored: !activeWindow.restored })
+                  }
                 >
                   {activeWindow.restored ? <Maximize2 size={15} /> : <Minimize2 size={15} />}
                 </button>
@@ -867,7 +931,7 @@ export default function App() {
                   className="icon-button window-close"
                   aria-label="Aktiv bölməni bağla"
                   title="Bağla"
-                  onClick={() => closeTab(page)}
+                  onClick={() => (nativeContext ? void desktop?.close() : closeTab(page))}
                 >
                   <X size={17} />
                 </button>
@@ -969,8 +1033,7 @@ export default function App() {
                   rows={invoiceRows}
                   columns={invoiceColumns}
                   onOpen={(i) => {
-                    if (!busy && !loading && i.status === 'posted')
-                      setModal({ kind: 'invoice', existing: i });
+                    if (!busy && !loading && i.status === 'posted') openInvoice(i);
                   }}
                   empty={
                     <Empty
@@ -980,7 +1043,7 @@ export default function App() {
                         <button
                           className="button primary"
                           disabled={busy || loading}
-                          onClick={() => setModal({ kind: 'invoice' })}
+                          onClick={() => openInvoice()}
                         >
                           <Plus size={16} />
                           Qaimə əlavə et
@@ -1309,10 +1372,14 @@ export default function App() {
                       <button
                         className="button secondary"
                         disabled={busy || loading}
-                        onClick={() => setModal({ kind: 'company' })}
+                        onClick={() =>
+                          nativeContext?.companyId ? open('home') : setModal({ kind: 'company' })
+                        }
                       >
                         <Plus size={16} />
-                        Yeni şirkət
+                        {nativeContext?.companyId
+                          ? 'Şirkətləri iş masasında idarə et'
+                          : 'Yeni şirkət'}
                       </button>
                     </div>
                   </section>
@@ -1398,41 +1465,45 @@ export default function App() {
           </div>
         </section>
       </main>
-      <footer className="workspace-footer">
-        <div className="workspace-tabs" role="tablist" aria-label="Açıq pəncərələr">
-          {tabs.map((t) => {
-            const T = pages[t].icon;
-            return (
-              <div className={`workspace-tab ${page === t ? 'active' : ''}`} key={t}>
-                <button
-                  id={`tab-${t}`}
-                  role="tab"
-                  aria-controls={page === t ? `window-${t}` : undefined}
-                  aria-selected={page === t}
-                  onClick={() => open(t)}
-                >
-                  <T size={14} />
-                  {pages[t].title}
-                </button>
-                {t !== 'home' && (
+      {nativeContext ? (
+        <NativeWindowBar context={nativeContext} />
+      ) : (
+        <footer className="workspace-footer">
+          <div className="workspace-tabs" role="tablist" aria-label="Açıq pəncərələr">
+            {tabs.map((t) => {
+              const T = pages[t].icon;
+              return (
+                <div className={`workspace-tab ${page === t ? 'active' : ''}`} key={t}>
                   <button
-                    aria-label={`${pages[t].title} pəncərəsini bağla`}
-                    className="tab-close"
-                    onClick={() => closeTab(t)}
+                    id={`tab-${t}`}
+                    role="tab"
+                    aria-controls={page === t ? `window-${t}` : undefined}
+                    aria-selected={page === t}
+                    onClick={() => open(t)}
                   >
-                    <X size={13} />
+                    <T size={14} />
+                    {pages[t].title}
                   </button>
-                )}
-              </div>
-            );
-          })}
-        </div>
-        <span className="footer-status">
-          <span className={loading ? 'working-dot' : 'saved-dot'} />
-          {loading ? 'Yüklənir…' : 'Meyar ERP 2'}
-          <span className="footer-version">v{version}</span>
-        </span>
-      </footer>
+                  {t !== 'home' && (
+                    <button
+                      aria-label={`${pages[t].title} pəncərəsini bağla`}
+                      className="tab-close"
+                      onClick={() => closeTab(t)}
+                    >
+                      <X size={13} />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <span className="footer-status">
+            <span className={loading ? 'working-dot' : 'saved-dot'} />
+            {loading ? 'Yüklənir…' : 'Meyar ERP 2'}
+            <span className="footer-version">v{version}</span>
+          </span>
+        </footer>
+      )}
       {modal && (
         <Modal
           title={

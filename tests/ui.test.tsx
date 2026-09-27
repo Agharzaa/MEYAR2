@@ -140,9 +140,7 @@ test('DOM + SQLite: onboarding, nested partner draft preservation, postings, pay
         .value,
       'UI-SALE-001',
     );
-    await user.click(
-      within(invoiceDialog).getByRole('button', { name: 'Yadda saxla və uçota al' }),
-    );
+    await user.click(within(invoiceDialog).getByRole('button', { name: 'Yadda saxla' }));
     await waitFor(() => assert.equal(screen.queryByRole('dialog'), null));
     await screen.findByRole('button', { name: 'UI-SALE-001', exact: true });
     let state = snapshot(firstCompany);
@@ -176,7 +174,7 @@ test('DOM + SQLite: onboarding, nested partner draft preservation, postings, pay
       within(paymentDialog).getByRole('textbox', { name: 'Məbləğ · AZN', exact: true }),
       '118',
     );
-    await user.click(within(paymentDialog).getByRole('button', { name: 'Ödənişi uçota al' }));
+    await user.click(within(paymentDialog).getByRole('button', { name: 'Yadda saxla' }));
     await waitFor(() => assert.equal(screen.queryByRole('dialog'), null));
     state = snapshot(firstCompany);
     assert.equal(state.payments.length, 1);
@@ -315,7 +313,7 @@ test('DOM + SQLite: rejected input preserves draft and in-flight double submit p
     await user.type(within(dialog).getByRole('textbox', { name: 'Əsas məbləğ · AZN' }), '100');
     const subaccount = within(dialog).getByRole('textbox', { name: /^Subkonto · 721/ });
     await user.type(subaccount, ' '); // Native required passes; accounting validation must reject whitespace.
-    await user.click(within(dialog).getByRole('button', { name: 'Yadda saxla və uçota al' }));
+    await user.click(within(dialog).getByRole('button', { name: 'Yadda saxla' }));
     await within(dialog).findByRole('alert');
     assert.match(within(dialog).getByRole('alert').textContent ?? '', /subkonto/i);
     assert.equal(

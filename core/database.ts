@@ -75,6 +75,9 @@ export class Store {
     if (!c) throw new Error('Şirkət tapılmadı.');
     return c;
   }
+  companyName(id: string): string {
+    return String(this.company(id).name);
+  }
   private partner(companyId: string, id: string): Row {
     const p = this.one(
       'SELECT * FROM partners WHERE company_id=? AND id=?',
@@ -182,7 +185,7 @@ export class Store {
       lines,
     );
   }
-  private saveInvoice(companyId: string, raw: InvoiceInput): MutationResult {
+  private saveInvoice(companyId: string, raw: InvoiceInput, importing = false): MutationResult {
     if (!raw || typeof raw !== 'object' || Array.isArray(raw))
       throw new Error('Qaimə məlumatları yoxdur.');
     const d = date(raw.date),
@@ -224,6 +227,16 @@ export class Store {
     if (raw.id && !existing) throw new Error('Qaimə tapılmadı.');
     if (byKey && existing && byKey.id !== existing.id)
       throw new Error('Bu nömrə, VÖEN və istiqamətlə qaimə artıq mövcuddur.');
+    if (
+      raw.id &&
+      (!Number.isSafeInteger(raw.expectedVersion) ||
+        raw.expectedVersion !== Number(existing?.version))
+    )
+      throw new Error(
+        'Qaimə başqa pəncərədə dəyişdirilib. Bu pəncərəni bağlayıb qaiməni yenidən açın; yazdığınız məlumatı əvvəlcə qoruyun.',
+      );
+    if (existing && !raw.id && !importing && existing.input !== JSON.stringify(input))
+      throw new Error('Bu qaimə artıq mövcuddur. Dəyişiklik üçün mövcud qaiməni açın.');
     if (existing?.status === 'cancelled')
       throw new Error('Ləğv olunmuş qaimənin nömrəsi təkrar istifadə edilə bilməz.');
     if (existing?.input === JSON.stringify(input)) return { id: String(existing.id), unchanged: 1 };
@@ -495,7 +508,11 @@ export class Store {
               if (seen.has(key)) throw new Error('Faylda təkrar qaimə var.');
               seen.add(key);
               const partnerId = this.savePartner(command.companyId, row.partnerName, row.taxId);
-              const r = this.saveInvoice(command.companyId, { ...row, partnerId, id: undefined });
+              const r = this.saveInvoice(
+                command.companyId,
+                { ...row, partnerId, id: undefined },
+                true,
+              );
               result.created += r.created ?? 0;
               result.updated += r.updated ?? 0;
               result.unchanged += r.unchanged ?? 0;

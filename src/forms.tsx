@@ -19,6 +19,7 @@ export function InvoiceForm({
   onSave,
   onClose,
   onPartner,
+  onDirtyChange,
 }: {
   state: State;
   direction: Direction;
@@ -28,26 +29,31 @@ export function InvoiceForm({
   onSave: (x: InvoiceInput) => Promise<void>;
   onClose: () => void;
   onPartner: () => void;
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
   const [vatError, setVatError] = useState('');
   const [v, set] = useState<InvoiceInput>(
-    existing ?? {
-      number: '',
-      date: today(),
-      partnerId: '',
-      direction,
-      kind: 'service',
-      net: '',
-      vat: '0.00',
-      subaccount: '',
-      description: '',
-    },
+    existing
+      ? { ...existing, expectedVersion: existing.version }
+      : {
+          number: '',
+          date: today(),
+          partnerId: '',
+          direction,
+          kind: 'service',
+          net: '',
+          vat: '0.00',
+          subaccount: '',
+          description: '',
+        },
   );
   useEffect(() => {
     if (newPartnerId) set((s) => ({ ...s, partnerId: newPartnerId }));
   }, [newPartnerId]);
-  const field = <K extends keyof InvoiceInput>(key: K, value: InvoiceInput[K]) =>
+  const field = <K extends keyof InvoiceInput>(key: K, value: InvoiceInput[K]) => {
+    onDirtyChange?.(true);
     set((s) => ({ ...s, [key]: value }));
+  };
   let total = '—';
   try {
     total = money(cents(v.net) + cents(v.vat));
@@ -216,7 +222,7 @@ export function InvoiceForm({
         </button>
         <button className="button primary" disabled={busy || !state.partners.length}>
           <Check size={16} />
-          {busy ? 'Saxlanılır…' : existing ? 'Düzəlişi uçota al' : 'Yadda saxla və uçota al'}
+          {busy ? 'Saxlanılır…' : existing ? 'Düzəlişi saxla' : 'Yadda saxla'}
         </button>
       </div>
     </form>
@@ -228,11 +234,13 @@ export function PaymentForm({
   busy,
   onSave,
   onClose,
+  onDirtyChange,
 }: {
   state: State;
   direction: PaymentDirection;
   busy: boolean;
   onSave: (x: PaymentInput) => Promise<void>;
+  onDirtyChange?: (dirty: boolean) => void;
   onClose: () => void;
 }) {
   const [v, set] = useState<PaymentInput>({
@@ -245,8 +253,10 @@ export function PaymentForm({
     invoiceId: '',
     description: '',
   });
-  const field = <K extends keyof PaymentInput>(key: K, value: PaymentInput[K]) =>
+  const field = <K extends keyof PaymentInput>(key: K, value: PaymentInput[K]) => {
+    onDirtyChange?.(true);
     set((s) => ({ ...s, [key]: value }));
+  };
   const invoices = state.invoices.filter(
     (i) =>
       i.partnerId === v.partnerId &&
@@ -362,7 +372,7 @@ export function PaymentForm({
         </button>
         <button className="button primary" disabled={busy || !state.partners.length}>
           <Check size={16} />
-          {busy ? 'Saxlanılır…' : 'Ödənişi uçota al'}
+          {busy ? 'Saxlanılır…' : 'Yadda saxla'}
         </button>
       </div>
     </form>

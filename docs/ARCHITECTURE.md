@@ -18,7 +18,7 @@ Frontend verilənlər bazasına birbaşa girmir. Electron IPC yalnız sadalanmı
 - Pul decimal mətn kimi qəbul edilir, formatdan sonra tam qəpiyə çevrilir. Səssiz üçüncü onluq yuvarlaqlaşdırması yoxdur.
 - Müxabirləşmə yalnız debet və kredit bərabər olduqda saxlanılır.
 - Sənəd, jurnal, yazılış və audit bir tranzaksiyadadır. İdxalın bütün sətrləri vahid tranzaksiyadadır.
-- Qaimənin təkrar identifikasiyası: `company + partner/VÖEN + number + direction`. Eyni məzmun dəyişiklik yaratmır, fərqli məzmun yeni versiya yaradır.
+- Qaimənin təkrar identifikasiyası: `company + partner/VÖEN + number + direction`. Eyni məzmun dəyişiklik yaratmır. Əl ilə düzəliş sənəd ID-si və cari `expectedVersion` tələb edir; köhnə versiya yazılmadan rədd edilir. İdxal eyni mənbə açarı üzrə yeni versiya yaradır.
 - Bank təkrar identifikasiyası: `company + reference + direction + bankAccount`. Dəyişmiş təkrar ödəniş səssiz yenilənmir.
 - Jurnal, yazılış və auditdə UPDATE/DELETE SQL trigger ilə qadağandır. Düzəlişlər əks yazılışdır.
 - Həm yeni, həm də ilkin sənəd tarixi dövr bağlanışına qarşı yoxlanılır. Verilənlər bazası səviyyəsində də tenant/dövr qorunması var.
@@ -47,3 +47,13 @@ Bu ilkin versiyada yayımlanmış/imzalanmış yeniləmə kanalı yoxdur. İstif
 4. Rol sistemi, müqavilələr və parametrli hesab/subkonto xəritəsi.
 5. Qanunvericiliklə yoxlanılmış vergi hesabatları və insan mühasibin nümunə bazası üzrə qəbul yoxlaması.
 6. Windows interfeysinin real cihazda vizual qəbulu və yeniləmə/bərpa ssenarisinin tam sınağı.
+
+## Müstəqil Windows pəncərələri
+
+`electron/windows.ts` hər modul və sənəd üçün ayrıca, parentsiz `BrowserWindow` yaradır. Şirkət və modul konteksti main prosesdə saxlanılır; renderer göndərdiyi şirkət ID-si ilə bu sərhədi dəyişə bilməz. İş masası şirkət seçimi və yeni şirkət yaradılması üçündür. Mövcud sənəd yenidən açılanda onun pəncərəsi önə gətirilir; yeni sənəd ayrıca redaktor alır.
+
+Bütün pəncərələr vahid main prosesdəki Store-a dar IPC ilə müraciət edir. SQLite yazıları sinxron tranzaksiyalarda icra edilir. Uğurlu dəyişiklikdən sonra şirkət ID-si ilə bildiriş verilir və həmin şirkətin açıq siyahıları yenidən oxunur. Redaktorun ilkin sənəd versiyası bildirişlə dəyişmir: köhnə redaktor daha yeni düzəlişi əvəz edə bilməz.
+
+Saxlanmamış sənəd üçün main proses pəncərə bağlanışını saxlayır və təsdiq istəyir. Sahələr pəncərə keçidlərində qalır; qəza və ya elektrik kəsilməsindən sonra qaralamaların bərpası bu versiyaya daxil deyil. Saxlama sənədi, müxabirləşməni və auditi vahid tranzaksiyada yazır. Ayrı uçotaalma düyməsi yoxdur.
+
+`scripts/electron-layout-smoke.cjs` Windows CI-də real Electron pəncərələrini, müstəqil hərəkəti, saxlanmamış sahələri, bağlama qorunmasını, avtomatik uçotu, bildiriş yenilənməsini, şirkət sərhədini və köhnə versiya rəddini yoxlayır.
