@@ -2,15 +2,15 @@
 
 Nomenklatura kartı məhsulu müəyyən edir. Alış sətirindəki istifadə məqsədi uçot kateqoriyasını müəyyən edir; kartdakı kateqoriya yalnız başlanğıc seçimdir.
 
-| Hadisə | Debet | Kredit |
-|---|---|---|
-| Mal alışı | 205, alış ƏDV-si 241 | 531 |
-| Material alışı | 201, alış ƏDV-si 241 | 531 |
-| Əsas vəsait alışı | 113, alış ƏDV-si 241 | 531 |
-| Əsas vəsaitin istismara verilməsi | 111 | 113 |
-| Materialın inzibati istifadəsi | 721, xərc subkontosu | 201 |
-| Mal satışı | 211 | 601, satış ƏDV-si 545 |
-| Satılan malın maya dəyəri | 701 | 205 (material satışı üçün 201) |
+| Hadisə                            | Debet                | Kredit                         |
+| --------------------------------- | -------------------- | ------------------------------ |
+| Mal alışı                         | 205, alış ƏDV-si 241 | 531                            |
+| Material alışı                    | 201, alış ƏDV-si 241 | 531                            |
+| Əsas vəsait alışı                 | 113, alış ƏDV-si 241 | 531                            |
+| Əsas vəsaitin istismara verilməsi | 111                  | 113                            |
+| Materialın inzibati istifadəsi    | 721, xərc subkontosu | 201                            |
+| Mal satışı                        | 211                  | 601, satış ƏDV-si 545          |
+| Satılan malın maya dəyəri         | 701                  | 205 (material satışı üçün 201) |
 
 Hesab adları və 111/113/201 təsnifatı: https://frameworks.e-qanun.az/34/ha_34909.html
 721 əməliyyatı yalnız inzibati material istifadəsini əhatə edir; istehsal məsrəflərinin uçotu ayrıca modul tələb edir.

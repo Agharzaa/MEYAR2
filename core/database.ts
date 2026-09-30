@@ -32,7 +32,24 @@ export class Store {
   private readonly inventory: Inventory;
   constructor(path: string) {
     this.db = new DatabaseSync(path);
-    this.inventory=new Inventory(this.db,{company:id=>this.company(id),open:(id,d)=>this.open(id,d),audit:(id,a,e,d)=>this.audit(id,a,e,d),reverse:(id,t,s,v,r)=>this.reverse(id,t,s,v,r),post:(id,p)=>this.post(id,p.date,p.type,p.id,p.number,p.version,p.reversal,p.description,p.lines)});
+    this.inventory = new Inventory(this.db, {
+      company: (id) => this.company(id),
+      open: (id, d) => this.open(id, d),
+      audit: (id, a, e, d) => this.audit(id, a, e, d),
+      reverse: (id, t, s, v, r) => this.reverse(id, t, s, v, r),
+      post: (id, p) =>
+        this.post(
+          id,
+          p.date,
+          p.type,
+          p.id,
+          p.number,
+          p.version,
+          p.reversal,
+          p.description,
+          p.lines,
+        ),
+    });
     try {
       this.db.exec(
         'PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; PRAGMA busy_timeout=5000;',
@@ -43,7 +60,8 @@ export class Store {
         this.db.exec('DROP TRIGGER IF EXISTS entry_tenant_insert;');
         this.db.exec(schema);
         this.db.exec(inventorySchema);
-        for(const [id,name] of unitSeeds)this.run('INSERT OR IGNORE INTO units VALUES(?,?)',id,name);
+        for (const [id, name] of unitSeeds)
+          this.run('INSERT OR IGNORE INTO units VALUES(?,?)', id, name);
       });
     } catch (error) {
       this.db.close();
@@ -202,13 +220,19 @@ export class Store {
       number = text(raw.number, 'Qaimə nömrəsi', 80).toUpperCase();
     if (!['purchase', 'sale'].includes(raw.direction) || !['goods', 'service'].includes(raw.kind))
       throw new Error('Qaimə istiqaməti və növü seçilməlidir.');
-    const items=raw.items?.length ? this.inventory.normalize(companyId,raw.items,raw.direction) : undefined;
-    if(raw.items!==undefined&&!Array.isArray(raw.items))throw new Error('Qaimə sətirləri düzgün deyil.');
-    if(raw.kind==='service'&&items)throw new Error('Xidmət qaiməsinə mal sətirləri əlavə edilə bilməz.');
-    const net = items ? sum(...items.map(i=>i.netCents)) : cents(raw.net, 'Əsas məbləğ'),
-      vat = items ? sum(...items.map(i=>i.vatCents)) : cents(raw.vat, 'ƏDV');
-    cents(decimal(net));cents(decimal(vat));
-    if(items&&(cents(raw.net)!==net||cents(raw.vat)!==vat))throw new Error('Sətirlərin cəmi qaimənin ümumi məbləğinə uyğun deyil.');
+    const items = raw.items?.length
+      ? this.inventory.normalize(companyId, raw.items, raw.direction)
+      : undefined;
+    if (raw.items !== undefined && !Array.isArray(raw.items))
+      throw new Error('Qaimə sətirləri düzgün deyil.');
+    if (raw.kind === 'service' && items)
+      throw new Error('Xidmət qaiməsinə mal sətirləri əlavə edilə bilməz.');
+    const net = items ? sum(...items.map((i) => i.netCents)) : cents(raw.net, 'Əsas məbləğ'),
+      vat = items ? sum(...items.map((i) => i.vatCents)) : cents(raw.vat, 'ƏDV');
+    cents(decimal(net));
+    cents(decimal(vat));
+    if (items && (cents(raw.net) !== net || cents(raw.vat) !== vat))
+      throw new Error('Sətirlərin cəmi qaimənin ümumi məbləğinə uyğun deyil.');
     if (net <= 0) throw new Error('Əsas məbləğ sıfırdan böyük olmalıdır.');
     const input: InvoiceInput = {
       number,
@@ -220,7 +244,7 @@ export class Store {
       vat: decimal(vat),
       subaccount: optional(raw.subaccount, 100),
       description: optional(raw.description),
-      ...(items?{items}:{}),
+      ...(items ? { items } : {}),
     };
     if (input.direction === 'purchase' && input.kind === 'service' && !input.subaccount)
       throw new Error('Xidmət alışında 721 üçün subkonto yazın.');
@@ -240,8 +264,17 @@ export class Store {
         )
       : byKey;
     if (raw.id && !existing) throw new Error('Qaimə tapılmadı.');
-    if(raw.kind==='goods'&&!items&&!importing&&(!existing||JSON.parse(String(existing.input)).items?.length))throw new Error('Mal qaiməsində nomenklatura sətirlərini doldurun.');
-    if(importing&&existing&&JSON.parse(String(existing.input)).items?.length&&!items)throw new Error('Nomenklatura sətirləri olan qaiməni cəmlərlə idxal etmək olmaz. Qaiməni açıb düzəliş edin.');
+    if (
+      raw.kind === 'goods' &&
+      !items &&
+      !importing &&
+      (!existing || JSON.parse(String(existing.input)).items?.length)
+    )
+      throw new Error('Mal qaiməsində nomenklatura sətirlərini doldurun.');
+    if (importing && existing && JSON.parse(String(existing.input)).items?.length && !items)
+      throw new Error(
+        'Nomenklatura sətirləri olan qaiməni cəmlərlə idxal etmək olmaz. Qaiməni açıb düzəliş edin.',
+      );
     if (byKey && existing && byKey.id !== existing.id)
       throw new Error('Bu nömrə, VÖEN və istiqamətlə qaimə artıq mövcuddur.');
     if (
@@ -272,7 +305,7 @@ export class Store {
         throw new Error(
           'Ödənişlə bağlanmış qaiməni dəyişmək üçün əvvəl əlaqəli ödənişi ləğv edin.',
         );
-      this.inventory.reverseSource(companyId,'invoice',id,Number(existing.version));
+      this.inventory.reverseSource(companyId, 'invoice', id, Number(existing.version));
       this.reverse(companyId, 'invoice', id, Number(existing.version), 'Qaimə düzəlişi');
       this.run(
         'UPDATE invoices SET partner_id=?,number=?,date=?,direction=?,net=?,vat=?,version=?,input=? WHERE id=?',
@@ -302,7 +335,9 @@ export class Store {
       );
     const total = sum(net, vat),
       p = String(partner.id);
-    const inventoryLines=items?this.inventory.applyInvoice(companyId,id,number,d,version,input.direction,items):[];
+    const inventoryLines = items
+      ? this.inventory.applyInvoice(companyId, id, number, d, version, input.direction, items)
+      : [];
     const lines: Line[] =
       input.direction === 'sale'
         ? [
@@ -312,12 +347,16 @@ export class Store {
             ...inventoryLines,
           ]
         : [
-            ...(items?inventoryLines:[{
-              account: input.kind === 'goods' ? '205' : '721',
-              subaccount: input.subaccount,
-              debit: net,
-              credit: 0,
-            }]),
+            ...(items
+              ? inventoryLines
+              : [
+                  {
+                    account: input.kind === 'goods' ? '205' : '721',
+                    subaccount: input.subaccount,
+                    debit: net,
+                    credit: 0,
+                  },
+                ]),
             { account: '241', debit: vat, credit: 0 },
             { account: '531', partnerId: p, debit: 0, credit: total },
           ];
@@ -455,7 +494,8 @@ export class Store {
       )
     )
       throw new Error('Əvvəl əlaqəli bank ödənişini ləğv edin.');
-    if(type==='invoice')this.inventory.reverseSource(companyId,'invoice',id,Number(old.version));
+    if (type === 'invoice')
+      this.inventory.reverseSource(companyId, 'invoice', id, Number(old.version));
     this.reverse(
       companyId,
       type,
@@ -483,13 +523,20 @@ export class Store {
     if (command.op === 'state') return this.snapshot(command.companyId, command.filter);
     return this.tx(() => {
       switch (command.op) {
-        case 'product.save': return this.inventory.saveProduct(command.companyId,command.product);
-        case 'warehouse.save': return this.inventory.saveWarehouse(command.companyId,command.name);
-        case 'unit.save': return this.inventory.saveUnit(command.companyId,command.code,command.name);
-        case 'stock.issue': return this.inventory.issue(command.companyId,command.issue);
-        case 'stock.issue.cancel': return this.inventory.cancelIssue(command.companyId,command.id,command.reason);
-        case 'asset.commission': return this.inventory.commission(command.companyId,command.asset);
-        case 'asset.commission.cancel': return this.inventory.cancelCommission(command.companyId,command.id,command.reason);
+        case 'product.save':
+          return this.inventory.saveProduct(command.companyId, command.product);
+        case 'warehouse.save':
+          return this.inventory.saveWarehouse(command.companyId, command.name);
+        case 'unit.save':
+          return this.inventory.saveUnit(command.companyId, command.code, command.name);
+        case 'stock.issue':
+          return this.inventory.issue(command.companyId, command.issue);
+        case 'stock.issue.cancel':
+          return this.inventory.cancelIssue(command.companyId, command.id, command.reason);
+        case 'asset.commission':
+          return this.inventory.commission(command.companyId, command.asset);
+        case 'asset.commission.cancel':
+          return this.inventory.cancelCommission(command.companyId, command.id, command.reason);
         case 'company.create': {
           const name = text(command.name, 'Şirkət adı'),
             tax = taxId(command.taxId);
@@ -497,7 +544,7 @@ export class Store {
             throw new Error('Bu VÖEN ilə şirkət artıq mövcuddur.');
           const id = uuid();
           this.run('INSERT INTO companies(id,name,tax_id) VALUES(?,?,?)', id, name, tax);
-          this.run('INSERT INTO warehouses VALUES(?,?,?)','default:'+id,id,'Əsas anbar');
+          this.run('INSERT INTO warehouses VALUES(?,?,?)', 'default:' + id, id, 'Əsas anbar');
           this.audit(id, 'Yaradıldı', 'Şirkət', name);
           return { id };
         }
@@ -577,7 +624,7 @@ export class Store {
     ) as unknown as Company[];
     if (!companies.length)
       return {
-        ...this.inventory.read('',from,to),
+        ...this.inventory.read('', from, to),
         company: { id: '', name: '', taxId: '', closedThrough: '' },
         companies,
         partners: [],
@@ -668,7 +715,7 @@ export class Store {
       id,
     ) as unknown as State['audit'];
     return {
-      ...this.inventory.read(id,from,to),
+      ...this.inventory.read(id, from, to),
       company,
       companies,
       partners,

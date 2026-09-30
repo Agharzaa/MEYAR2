@@ -2,7 +2,13 @@ import type { Command } from '../shared/types.js';
 
 const operations = new Set([
   'state',
-  'product.save','warehouse.save','unit.save','stock.issue','stock.issue.cancel','asset.commission','asset.commission.cancel',
+  'product.save',
+  'warehouse.save',
+  'unit.save',
+  'stock.issue',
+  'stock.issue.cancel',
+  'asset.commission',
+  'asset.commission.cancel',
   'company.create',
   'partner.save',
   'invoice.save',

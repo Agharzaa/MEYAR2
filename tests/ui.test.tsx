@@ -574,49 +574,146 @@ test('Internal workspace preserves invoice fields across modules and company swi
   }
 });
 
-test('DOM + SQLite: goods invoice creates nomenclature inline, converts packaging and posts mixed inventory categories',async()=>{
- const store=new Store(':memory:');
- const result=store.call({op:'company.create',name:'Anbar UI MMC',taxId:'5555555555'}) as {id:string};
- const companyId=result.id,partnerId=(store.call({op:'partner.save',companyId,name:'Təchizatçı MMC',taxId:'6666666666'}) as {id:string}).id;
- const assetId=(store.call({op:'product.save',companyId,product:{code:'ASSET-UI',name:'Noutbuk',group:'Avadanlıq',barcode:'',baseUnitId:'pcs',purchaseUnitId:'pcs',factor:'1',category:'asset'}}) as {id:string}).id;
- window.meyar={call:async command=>store.call(command),backup:async()=>null,importFile:async()=>null,template:async()=>null,checkUpdate:async()=>'',version:async()=>'0.2.0-test'};
- const user=userEvent.setup();
- const state=()=>store.snapshot(companyId,{from:'2000-01-01',to:'2099-12-31',account:''});
- try{
-  render(<App/>);
-  await user.click(await screen.findByRole('button',{name:'Gələn qaimələr',exact:true}));
-  await user.click(screen.getByRole('button',{name:'Əlavə et',exact:true}));
-  const dialog=await screen.findByRole('dialog',{name:'Yeni gələn qaimə'});
-  fireEvent.change(within(dialog).getByRole('textbox',{name:'Qaimə nömrəsi'}),{target:{value:'UI-GOODS-1'}});
-  await user.selectOptions(within(dialog).getByRole('combobox',{name:'Kontragent'}),partnerId);
-  await user.selectOptions(within(dialog).getByRole('combobox',{name:'Əməliyyatın növü'}),'goods');
-  await user.click(within(dialog).getByRole('button',{name:'Yeni nomenklatura 1'}));
-  const product=await screen.findByRole('dialog',{name:'Yeni nomenklatura'});
-  fireEvent.change(within(product).getByRole('textbox',{name:'Nomenklatura adı'}),{target:{value:'Qablaşdırılmış mal'}});
-  await user.selectOptions(within(product).getByRole('combobox',{name:'Alış / qablaşdırma vahidi'}),'box');
-  fireEvent.change(within(product).getByRole('textbox',{name:/^Bir alış vahidində əsas vahid sayı/}),{target:{value:'12'}});
-  await user.click(within(product).getByRole('button',{name:'Nomenklaturanı saxla'}));
-  await waitFor(()=>assert.equal(screen.queryByRole('dialog',{name:'Yeni nomenklatura'}),null));
-  assert.equal((within(dialog).getByRole('textbox',{name:'Qaimə nömrəsi'}) as HTMLInputElement).value,'UI-GOODS-1');
-  assert.equal((within(dialog).getByRole('combobox',{name:'Vahid 1'}) as HTMLSelectElement).value,'box');
-  fireEvent.change(within(dialog).getByRole('textbox',{name:'Miqdar 1'}),{target:{value:'2'}});
-  fireEvent.change(within(dialog).getByRole('textbox',{name:'Vahid qiyməti 1'}),{target:{value:'120'}});
-  await user.click(within(dialog).getByRole('button',{name:'Sətir əlavə et'}));
-  await user.selectOptions(within(dialog).getByRole('combobox',{name:'Nomenklatura 2'}),assetId);
-  assert.equal((within(dialog).getByRole('combobox',{name:'Kateqoriya 2'}) as HTMLSelectElement).value,'asset');
-  fireEvent.change(within(dialog).getByRole('textbox',{name:'Vahid qiyməti 2'}),{target:{value:'500'}});
-  await user.click(within(dialog).getByRole('button',{name:'18%'}));
-  assert.equal((within(dialog).getByRole('textbox',{name:'Əsas məbləğ · AZN'}) as HTMLInputElement).value,'740.00');
-  assert.equal((within(dialog).getByRole('textbox',{name:'ƏDV məbləği · AZN'}) as HTMLInputElement).value,'133.20');
-  await user.click(within(dialog).getByRole('button',{name:'Yadda saxla',exact:true}));
-  await waitFor(()=>assert.equal(screen.queryByRole('dialog',{name:'Yeni gələn qaimə'}),null));
-  const s=state();assert.equal(s.invoices.length,1);assert.equal(s.invoices[0].items!.length,2);
-  assert.equal(s.stock.find(r=>r.productName==='Qablaşdırılmış mal')!.quantity,'24');
-  assert.equal(s.assets.length,1);assert.equal(s.assets[0].costCents,50000);
-  assert.equal(s.balances[0].payable,87320);
-  await user.click(screen.getByRole('button',{name:'Anbar',exact:true}));
-  await screen.findByRole('heading',{name:'Anbar uçotu'});
-  await screen.findByText('Qablaşdırılmış mal');
-  assert.equal(screen.getAllByRole('row').length>=3,true);
- }finally{cleanup();store.close();}
+test('DOM + SQLite: goods invoice creates nomenclature inline, converts packaging and posts mixed inventory categories', async () => {
+  const store = new Store(':memory:');
+  const result = store.call({
+    op: 'company.create',
+    name: 'Anbar UI MMC',
+    taxId: '5555555555',
+  }) as { id: string };
+  const companyId = result.id,
+    partnerId = (
+      store.call({
+        op: 'partner.save',
+        companyId,
+        name: 'Təchizatçı MMC',
+        taxId: '6666666666',
+      }) as { id: string }
+    ).id;
+  const assetId = (
+    store.call({
+      op: 'product.save',
+      companyId,
+      product: {
+        code: 'ASSET-UI',
+        name: 'Noutbuk',
+        group: 'Avadanlıq',
+        barcode: '',
+        baseUnitId: 'pcs',
+        purchaseUnitId: 'pcs',
+        factor: '1',
+        category: 'asset',
+      },
+    }) as { id: string }
+  ).id;
+  window.meyar = {
+    call: async (command) => store.call(command),
+    backup: async () => null,
+    importFile: async () => null,
+    template: async () => null,
+    checkUpdate: async () => '',
+    version: async () => '0.2.0-test',
+  };
+  const user = userEvent.setup();
+  const state = () =>
+    store.snapshot(companyId, { from: '2000-01-01', to: '2099-12-31', account: '' });
+  try {
+    render(<App />);
+    await user.click(await screen.findByRole('button', { name: 'Gələn qaimələr', exact: true }));
+    await user.click(screen.getByRole('button', { name: 'Əlavə et', exact: true }));
+    const dialog = await screen.findByRole('dialog', { name: 'Yeni gələn qaimə' });
+    fireEvent.change(within(dialog).getByRole('textbox', { name: 'Qaimə nömrəsi' }), {
+      target: { value: 'UI-GOODS-1' },
+    });
+    await user.selectOptions(
+      within(dialog).getByRole('combobox', { name: 'Kontragent' }),
+      partnerId,
+    );
+    await user.selectOptions(
+      within(dialog).getByRole('combobox', { name: 'Əməliyyatın növü' }),
+      'goods',
+    );
+    await user.click(within(dialog).getByRole('button', { name: 'Yeni nomenklatura 1' }));
+    const product = await screen.findByRole('dialog', { name: 'Yeni nomenklatura' });
+    fireEvent.change(within(product).getByRole('textbox', { name: 'Nomenklatura adı' }), {
+      target: { value: 'Qablaşdırılmış mal' },
+    });
+    await user.selectOptions(
+      within(product).getByRole('combobox', { name: 'Alış / qablaşdırma vahidi' }),
+      'box',
+    );
+    fireEvent.change(
+      within(product).getByRole('textbox', { name: /^Bir alış vahidində əsas vahid sayı/ }),
+      { target: { value: '12' } },
+    );
+    await user.click(within(product).getByRole('button', { name: 'Nomenklaturanı saxla' }));
+    await waitFor(() =>
+      assert.equal(screen.queryByRole('dialog', { name: 'Yeni nomenklatura' }), null),
+    );
+    assert.equal(
+      (within(dialog).getByRole('textbox', { name: 'Qaimə nömrəsi' }) as HTMLInputElement).value,
+      'UI-GOODS-1',
+    );
+    assert.equal(
+      (within(dialog).getByRole('combobox', { name: 'Vahid 1' }) as HTMLSelectElement).value,
+      'box',
+    );
+    fireEvent.change(within(dialog).getByRole('textbox', { name: 'Miqdar 1' }), {
+      target: { value: '2' },
+    });
+    fireEvent.change(within(dialog).getByRole('textbox', { name: 'Vahid qiyməti 1' }), {
+      target: { value: '120' },
+    });
+    await user.click(within(dialog).getByRole('button', { name: 'Sətir əlavə et' }));
+    await user.selectOptions(
+      within(dialog).getByRole('combobox', { name: 'Nomenklatura 2' }),
+      assetId,
+    );
+    assert.equal(
+      (within(dialog).getByRole('combobox', { name: 'Kateqoriya 2' }) as HTMLSelectElement).value,
+      'asset',
+    );
+    fireEvent.change(within(dialog).getByRole('textbox', { name: 'Vahid qiyməti 2' }), {
+      target: { value: '500' },
+    });
+    await user.click(within(dialog).getByRole('button', { name: '18%' }));
+    assert.equal(
+      (within(dialog).getByRole('textbox', { name: 'Əsas məbləğ · AZN' }) as HTMLInputElement)
+        .value,
+      '740.00',
+    );
+    assert.equal(
+      (within(dialog).getByRole('textbox', { name: 'ƏDV məbləği · AZN' }) as HTMLInputElement)
+        .value,
+      '133.20',
+    );
+    await user.click(within(dialog).getByRole('button', { name: 'Yadda saxla', exact: true }));
+    await waitFor(() =>
+      assert.equal(screen.queryByRole('dialog', { name: 'Yeni gələn qaimə' }), null),
+    );
+    const s = state();
+    assert.equal(s.invoices.length, 1);
+    assert.equal(s.invoices[0].items!.length, 2);
+    assert.equal(s.stock.find((r) => r.productName === 'Qablaşdırılmış mal')!.quantity, '24');
+    assert.equal(s.assets.length, 1);
+    assert.equal(s.assets[0].costCents, 50000);
+    assert.equal(s.balances[0].payable, 87320);
+    await user.click(screen.getByRole('button', { name: 'Anbar', exact: true }));
+    await screen.findByRole('heading', { name: 'Anbar uçotu' });
+    await screen.findByText('Qablaşdırılmış mal');
+    assert.equal(screen.getAllByRole('row').length >= 3, true);
+    const selector = screen.getByRole('combobox', { name: 'Aktiv şirkət' }) as HTMLSelectElement;
+    fireEvent.change(selector, { target: { value: companyId } });
+    await waitFor(() =>
+      assert.equal(
+        selector.disabled,
+        false,
+        'Selecting the active company must not leave the workspace loading',
+      ),
+    );
+    assert.ok(screen.getByRole('heading', { name: 'Anbar uçotu' }));
+  } finally {
+    cleanup();
+    store.close();
+  }
 });

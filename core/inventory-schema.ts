@@ -1,5 +1,16 @@
-export const unitSeeds=[['pcs','Ədəd'],['l','Litr'],['kg','Kq'],['m','Metr'],['m2','m²'],['pair','Cüt'],['set','Dəst'],['box','Qutu'],['ton','Ton'],['m3','m³']] as const;
-export const inventorySchema=`
+export const unitSeeds = [
+  ['pcs', 'Ədəd'],
+  ['l', 'Litr'],
+  ['kg', 'Kq'],
+  ['m', 'Metr'],
+  ['m2', 'm²'],
+  ['pair', 'Cüt'],
+  ['set', 'Dəst'],
+  ['box', 'Qutu'],
+  ['ton', 'Ton'],
+  ['m3', 'm³'],
+] as const;
+export const inventorySchema = `
 CREATE TABLE IF NOT EXISTS units(id TEXT PRIMARY KEY,name TEXT NOT NULL UNIQUE);
 CREATE TABLE IF NOT EXISTS products(id TEXT PRIMARY KEY,company_id TEXT NOT NULL REFERENCES companies(id),code TEXT NOT NULL,name TEXT NOT NULL,group_name TEXT NOT NULL,barcode TEXT NOT NULL,base_unit_id TEXT NOT NULL REFERENCES units(id),purchase_unit_id TEXT NOT NULL REFERENCES units(id),factor INTEGER NOT NULL CHECK(typeof(factor)='integer' AND factor>0),category TEXT NOT NULL CHECK(category IN('goods','material','asset')),UNIQUE(company_id,code));
 CREATE UNIQUE INDEX IF NOT EXISTS product_barcode ON products(company_id,barcode) WHERE barcode!='';

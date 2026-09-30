@@ -1,4 +1,10 @@
-import type { InventoryState, InvoiceItemInput, ProductInput, StockIssueInput, AssetCommissionInput } from './inventory.js';
+import type {
+  InventoryState,
+  InvoiceItemInput,
+  ProductInput,
+  StockIssueInput,
+  AssetCommissionInput,
+} from './inventory.js';
 import type { WindowBridge } from './windows.js';
 export type Direction = 'purchase' | 'sale';
 export type PaymentDirection = 'in' | 'out';
@@ -109,13 +115,13 @@ export interface State extends InventoryState {
   report: ReportFilter;
 }
 export type Command =
-  | { op:'product.save';companyId:string;product:ProductInput }
-  | { op:'warehouse.save';companyId:string;name:string }
-  | { op:'unit.save';companyId:string;code:string;name:string }
-  | { op:'stock.issue';companyId:string;issue:StockIssueInput }
-  | { op:'stock.issue.cancel';companyId:string;id:string;reason:string }
-  | { op:'asset.commission';companyId:string;asset:AssetCommissionInput }
-  | { op:'asset.commission.cancel';companyId:string;id:string;reason:string }
+  | { op: 'product.save'; companyId: string; product: ProductInput }
+  | { op: 'warehouse.save'; companyId: string; name: string }
+  | { op: 'unit.save'; companyId: string; code: string; name: string }
+  | { op: 'stock.issue'; companyId: string; issue: StockIssueInput }
+  | { op: 'stock.issue.cancel'; companyId: string; id: string; reason: string }
+  | { op: 'asset.commission'; companyId: string; asset: AssetCommissionInput }
+  | { op: 'asset.commission.cancel'; companyId: string; id: string; reason: string }
   | { op: 'state'; companyId: string; filter: ReportFilter }
   | { op: 'company.create'; name: string; taxId: string }
   | { op: 'partner.save'; companyId: string; name: string; taxId: string }

@@ -10,11 +10,11 @@ import type {
   State,
 } from '../shared/types';
 import { Field, Modal, money, today } from './components';
-import {api} from './api';
-import {ProductForm} from './InventoryPages';
-import {InvoiceItems,emptyItem} from './InvoiceItems';
-import {lineAmount} from '../core/quantity';
-import type {InvoiceItemInput,ProductInput} from '../shared/inventory';
+import { api } from './api';
+import { ProductForm } from './InventoryPages';
+import { InvoiceItems, emptyItem } from './InvoiceItems';
+import { lineAmount } from '../core/quantity';
+import type { InvoiceItemInput, ProductInput } from '../shared/inventory';
 export function InvoiceForm({
   state,
   direction,
@@ -37,34 +37,66 @@ export function InvoiceForm({
   onDirtyChange?: (dirty: boolean) => void;
 }) {
   const [vatError, setVatError] = useState('');
-  const [catalog,setCatalog]=useState<State|null>(null);
-  const [productEditor,setProductEditor]=useState<number|null>(null);
-  const [catalogBusy,setCatalogBusy]=useState(false);
-  const [catalogError,setCatalogError]=useState('');
-  const catalogState=catalog??state;
-  useEffect(()=>setCatalog(null),[state]);
-  function itemsTotal(items:InvoiceItemInput[]){
-    if(!items.length)throw new Error('Ən azı bir nomenklatura sətri əlavə edin.');
-    return {net:decimal(sum(...items.map(i=>lineAmount(i.quantity,i.unitPrice)))),vat:decimal(sum(...items.map(i=>cents(i.vat))))};
+  const [catalog, setCatalog] = useState<State | null>(null);
+  const [productEditor, setProductEditor] = useState<number | null>(null);
+  const [catalogBusy, setCatalogBusy] = useState(false);
+  const [catalogError, setCatalogError] = useState('');
+  const catalogState = catalog ?? state;
+  useEffect(() => setCatalog(null), [state]);
+  function itemsTotal(items: InvoiceItemInput[]) {
+    if (!items.length) throw new Error('Ən azı bir nomenklatura sətri əlavə edin.');
+    return {
+      net: decimal(sum(...items.map((i) => lineAmount(i.quantity, i.unitPrice)))),
+      vat: decimal(sum(...items.map((i) => cents(i.vat)))),
+    };
   }
-  function updateItems(items:InvoiceItemInput[]){
+  function updateItems(items: InvoiceItemInput[]) {
     onDirtyChange?.(true);
-    let totals={net:'',vat:'0.00'};
-    try{totals=itemsTotal(items);setVatError('');}catch{/* incomplete rows */}
-    set(s=>({...s,items,...totals}));
+    let totals = { net: '', vat: '0.00' };
+    try {
+      totals = itemsTotal(items);
+      setVatError('');
+    } catch {
+      /* incomplete rows */
+    }
+    set((s) => ({ ...s, items, ...totals }));
   }
-  async function saveProduct(product:ProductInput){
-    if(catalogBusy||productEditor===null)return;
-    setCatalogBusy(true);setCatalogError('');
-    try{
-      const result=await api.call({op:'product.save',companyId:state.company.id,product}) as {id:string};
-      const next=await api.call({op:'state',companyId:state.company.id,filter:state.report}) as State;
-      const p=next.products.find(x=>x.id===result.id);
-      if(!p)throw new Error('Nomenklatura tapılmadı.');
+  async function saveProduct(product: ProductInput) {
+    if (catalogBusy || productEditor === null) return;
+    setCatalogBusy(true);
+    setCatalogError('');
+    try {
+      const result = (await api.call({
+        op: 'product.save',
+        companyId: state.company.id,
+        product,
+      })) as { id: string };
+      const next = (await api.call({
+        op: 'state',
+        companyId: state.company.id,
+        filter: state.report,
+      })) as State;
+      const p = next.products.find((x) => x.id === result.id);
+      if (!p) throw new Error('Nomenklatura tapılmadı.');
       setCatalog(next);
-      updateItems((v.items??[]).map((row,index)=>index===productEditor?{...row,productId:p.id,unitId:p.purchaseUnitId,category:direction==='sale'&&p.category==='asset'?'goods':p.category}:row));
+      updateItems(
+        (v.items ?? []).map((row, index) =>
+          index === productEditor
+            ? {
+                ...row,
+                productId: p.id,
+                unitId: p.purchaseUnitId,
+                category: direction === 'sale' && p.category === 'asset' ? 'goods' : p.category,
+              }
+            : row,
+        ),
+      );
       setProductEditor(null);
-    }catch(e){setCatalogError((e as Error).message);}finally{setCatalogBusy(false);}
+    } catch (e) {
+      setCatalogError((e as Error).message);
+    } finally {
+      setCatalogBusy(false);
+    }
   }
   const [v, set] = useState<InvoiceInput>(
     existing
@@ -86,10 +118,17 @@ export function InvoiceForm({
   }, [newPartnerId]);
   const field = <K extends keyof InvoiceInput>(key: K, value: InvoiceInput[K]) => {
     onDirtyChange?.(true);
-    if(key==='kind'){
-      const kind=value as InvoiceInput['kind'];
-      set(s=>({...s,kind,items:kind==='goods'?(s.items?.length?s.items:[emptyItem(catalogState)]):undefined,net:'',vat:'0.00'}));
-    }else set((s) => ({ ...s, [key]: value }));
+    if (key === 'kind') {
+      const kind = value as InvoiceInput['kind'];
+      set((s) => ({
+        ...s,
+        kind,
+        items:
+          kind === 'goods' ? (s.items?.length ? s.items : [emptyItem(catalogState)]) : undefined,
+        net: '',
+        vat: '0.00',
+      }));
+    } else set((s) => ({ ...s, [key]: value }));
   };
   let total = '—';
   try {
@@ -99,8 +138,15 @@ export function InvoiceForm({
   }
   function calcVat() {
     try {
-      if(v.kind==='goods'){
-        updateItems((v.items??[]).map(row=>({...row,vat:decimal(Number((BigInt(lineAmount(row.quantity,row.unitPrice))*18n+50n)/100n))})));
+      if (v.kind === 'goods') {
+        updateItems(
+          (v.items ?? []).map((row) => ({
+            ...row,
+            vat: decimal(
+              Number((BigInt(lineAmount(row.quantity, row.unitPrice)) * 18n + 50n) / 100n),
+            ),
+          })),
+        );
         return;
       }
       field('vat', decimal(Number((BigInt(cents(v.net)) * 18n + 50n) / 100n)));
@@ -110,173 +156,218 @@ export function InvoiceForm({
     }
   }
   return (
-    <><form
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (busy||catalogBusy) return;
-        try{void onSave(v.kind==='goods'?{...v,...itemsTotal(v.items??[])}:v);}
-        catch(e){setVatError((e as Error).message);}
-      }}
-    >
-      <div className="form-body">
-        <div className="form-grid">
-          <Field label="Qaimə nömrəsi">
-            <input
-              disabled={busy}
-              required
-              autoFocus
-              maxLength={80}
-              value={v.number}
-              onChange={(e) => field('number', e.target.value)}
-              placeholder="Məsələn, MT2609…"
-            />
-          </Field>
-          <Field label="Tarix">
-            <input
-              disabled={busy}
-              required
-              type="date"
-              value={v.date}
-              onChange={(e) => field('date', e.target.value)}
-            />
-          </Field>
-          <Field label="Kontragent" full>
-            <div className="input-action">
-              <select
+    <>
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (busy || catalogBusy) return;
+          try {
+            void onSave(v.kind === 'goods' ? { ...v, ...itemsTotal(v.items ?? []) } : v);
+          } catch (e) {
+            setVatError((e as Error).message);
+          }
+        }}
+      >
+        <div className="form-body">
+          <div className="form-grid">
+            <Field label="Qaimə nömrəsi">
+              <input
                 disabled={busy}
                 required
-                value={v.partnerId}
-                onChange={(e) => field('partnerId', e.target.value)}
-              >
-                <option value="">Kontragent seçin</option>
-                {state.partners.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} · {p.taxId}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                title="Kontragent əlavə et"
-                aria-label="Kontragent əlavə et"
-                className="button secondary"
+                autoFocus
+                maxLength={80}
+                value={v.number}
+                onChange={(e) => field('number', e.target.value)}
+                placeholder="Məsələn, MT2609…"
+              />
+            </Field>
+            <Field label="Tarix">
+              <input
                 disabled={busy}
-                onClick={onPartner}
+                required
+                type="date"
+                value={v.date}
+                onChange={(e) => field('date', e.target.value)}
+              />
+            </Field>
+            <Field label="Kontragent" full>
+              <div className="input-action">
+                <select
+                  disabled={busy}
+                  required
+                  value={v.partnerId}
+                  onChange={(e) => field('partnerId', e.target.value)}
+                >
+                  <option value="">Kontragent seçin</option>
+                  {state.partners.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} · {p.taxId}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  title="Kontragent əlavə et"
+                  aria-label="Kontragent əlavə et"
+                  className="button secondary"
+                  disabled={busy}
+                  onClick={onPartner}
+                >
+                  <Plus size={17} />
+                </button>
+              </div>
+            </Field>
+            <Field label="Əməliyyatın növü">
+              <select
+                disabled={busy}
+                value={v.kind}
+                onChange={(e) => field('kind', e.target.value as InvoiceInput['kind'])}
               >
-                <Plus size={17} />
-              </button>
-            </div>
-          </Field>
-          <Field label="Əməliyyatın növü">
-            <select
-              disabled={busy}
-              value={v.kind}
-              onChange={(e) => field('kind', e.target.value as InvoiceInput['kind'])}
-            >
-              <option value="service">Xidmət</option>
-              <option value="goods">Mal / material / əsas vəsait</option>
-            </select>
-          </Field>
-          {v.kind==='service'&&<Field
-            label={
-              direction === 'purchase' && v.kind === 'service'
-                ? 'Subkonto · 721'
-                : 'Subkonto / analitika'
-            }
-            hint={
-              direction === 'purchase' && v.kind === 'service'
-                ? 'Məsələn: rabitə, nəqliyyat, ofis xərcləri'
-                : undefined
-            }
-          >
-            <input
-              disabled={busy}
-              required={direction === 'purchase' && v.kind === 'service'}
-              maxLength={100}
-              value={v.subaccount}
-              onChange={(e) => field('subaccount', e.target.value)}
-              placeholder="Subkonto adı"
-            />
-          </Field>}
-          <Field label="Əsas məbləğ · AZN">
-            <input
-              disabled={busy}
-              required
-              inputMode="decimal"
-              pattern="[0-9]+([.,][0-9]{1,2})?"
-              readOnly={v.kind==='goods'}
-              value={v.net}
-              onChange={(e) => field('net', e.target.value)}
-              placeholder="0,00"
-            />
-          </Field>
-          <Field label="ƏDV məbləği · AZN">
-            <div className="input-action">
+                <option value="service">Xidmət</option>
+                <option value="goods">Mal / material / əsas vəsait</option>
+              </select>
+            </Field>
+            {v.kind === 'service' && (
+              <Field
+                label={
+                  direction === 'purchase' && v.kind === 'service'
+                    ? 'Subkonto · 721'
+                    : 'Subkonto / analitika'
+                }
+                hint={
+                  direction === 'purchase' && v.kind === 'service'
+                    ? 'Məsələn: rabitə, nəqliyyat, ofis xərcləri'
+                    : undefined
+                }
+              >
+                <input
+                  disabled={busy}
+                  required={direction === 'purchase' && v.kind === 'service'}
+                  maxLength={100}
+                  value={v.subaccount}
+                  onChange={(e) => field('subaccount', e.target.value)}
+                  placeholder="Subkonto adı"
+                />
+              </Field>
+            )}
+            <Field label="Əsas məbləğ · AZN">
               <input
                 disabled={busy}
                 required
                 inputMode="decimal"
                 pattern="[0-9]+([.,][0-9]{1,2})?"
-                aria-label="ƏDV məbləği · AZN"
-                readOnly={v.kind==='goods'}
-                value={v.vat}
-                onChange={(e) => field('vat', e.target.value)}
+                readOnly={v.kind === 'goods'}
+                value={v.net}
+                onChange={(e) => field('net', e.target.value)}
+                placeholder="0,00"
               />
-              <button
-                type="button"
-                className="button secondary vat-button"
+            </Field>
+            <Field label="ƏDV məbləği · AZN">
+              <div className="input-action">
+                <input
+                  disabled={busy}
+                  required
+                  inputMode="decimal"
+                  pattern="[0-9]+([.,][0-9]{1,2})?"
+                  aria-label="ƏDV məbləği · AZN"
+                  readOnly={v.kind === 'goods'}
+                  value={v.vat}
+                  onChange={(e) => field('vat', e.target.value)}
+                />
+                <button
+                  type="button"
+                  className="button secondary vat-button"
+                  disabled={busy}
+                  onClick={calcVat}
+                  title="Əsas məbləğin 18 faizini hesabla"
+                >
+                  18%
+                </button>
+              </div>
+            </Field>
+            <Field label="Təyinat" full>
+              <textarea
                 disabled={busy}
-                onClick={calcVat}
-                title="Əsas məbləğin 18 faizini hesabla"
-              >
-                18%
-              </button>
-            </div>
-          </Field>
-          <Field label="Təyinat" full>
-            <textarea
-              disabled={busy}
-              maxLength={500}
-              rows={2}
-              value={v.description}
-              onChange={(e) => field('description', e.target.value)}
-              placeholder="Mal və ya xidmətin qısa təsviri"
+                maxLength={500}
+                rows={2}
+                value={v.description}
+                onChange={(e) => field('description', e.target.value)}
+                placeholder="Mal və ya xidmətin qısa təsviri"
+              />
+            </Field>
+          </div>
+          {v.kind === 'goods' && (
+            <InvoiceItems
+              state={catalogState}
+              items={v.items ?? []}
+              direction={direction}
+              busy={busy || catalogBusy}
+              onChange={updateItems}
+              onProduct={(index) => {
+                setCatalogError('');
+                setProductEditor(index);
+              }}
             />
-          </Field>
+          )}
+          {existing?.kind === 'goods' && !existing.items?.length && (
+            <p className="inventory-note">
+              Əvvəlki qaimədə yalnız maliyyə məbləği var. Anbar uçotu üçün məhsul sətirlərini daxil
+              edin.
+            </p>
+          )}
+          {vatError && <p role="alert">{vatError}</p>}
+          <div className="form-total">
+            <span>Qaimənin ümumi məbləği</span>
+            <strong>
+              {total} <small>AZN</small>
+            </strong>
+          </div>
+          <div className="form-note">
+            <Info size={16} />
+            <span>
+              Yadda saxlandıqda müxabirləşmə avtomatik yaranır. ƏDV məbləğini sənədə uyğun daxil
+              edin.
+              {v.kind === 'goods'
+                ? ' Nomenklatura sətirləri üzrə anbar hərəkəti və kateqoriyaya uyğun uçot avtomatik yaranır.'
+                : ''}
+            </span>
+          </div>
         </div>
-        {v.kind==='goods'&&<InvoiceItems state={catalogState} items={v.items??[]} direction={direction} busy={busy||catalogBusy} onChange={updateItems} onProduct={index=>{setCatalogError('');setProductEditor(index);}}/>}
-        {existing?.kind==='goods'&&!existing.items?.length&&<p className="inventory-note">Əvvəlki qaimədə yalnız maliyyə məbləği var. Anbar uçotu üçün məhsul sətirlərini daxil edin.</p>}
-        {vatError && <p role="alert">{vatError}</p>}
-        <div className="form-total">
-          <span>Qaimənin ümumi məbləği</span>
-          <strong>
-            {total} <small>AZN</small>
-          </strong>
+        <div className="modal-actions">
+          <button type="button" className="button secondary" onClick={onClose} disabled={busy}>
+            Bağla
+          </button>
+          <button
+            className="button primary"
+            disabled={busy || catalogBusy || !state.partners.length}
+          >
+            <Check size={16} />
+            {busy ? 'Saxlanılır…' : existing ? 'Düzəlişi saxla' : 'Yadda saxla'}
+          </button>
         </div>
-        <div className="form-note">
-          <Info size={16} />
-          <span>
-            Yadda saxlandıqda müxabirləşmə avtomatik yaranır. ƏDV məbləğini sənədə uyğun daxil edin.
-            {v.kind === 'goods'
-              ? ' Nomenklatura sətirləri üzrə anbar hərəkəti və kateqoriyaya uyğun uçot avtomatik yaranır.'
-              : ''}
-          </span>
-        </div>
-      </div>
-      <div className="modal-actions">
-        <button type="button" className="button secondary" onClick={onClose} disabled={busy}>
-          Bağla
-        </button>
-        <button className="button primary" disabled={busy || catalogBusy || !state.partners.length}>
-          <Check size={16} />
-          {busy ? 'Saxlanılır…' : existing ? 'Düzəlişi saxla' : 'Yadda saxla'}
-        </button>
-      </div>
-    </form>
-    {productEditor!==null&&<Modal title="Yeni nomenklatura" onClose={()=>{if(!catalogBusy)setProductEditor(null);}}>
-      {catalogError&&<p role="alert" className="message error">{catalogError}</p>}
-      <ProductForm state={catalogState} busy={catalogBusy} onSave={saveProduct} onClose={()=>setProductEditor(null)} onDirty={()=>onDirtyChange?.(true)}/>
-    </Modal>}</>
+      </form>
+      {productEditor !== null && (
+        <Modal
+          title="Yeni nomenklatura"
+          onClose={() => {
+            if (!catalogBusy) setProductEditor(null);
+          }}
+        >
+          {catalogError && (
+            <p role="alert" className="message error">
+              {catalogError}
+            </p>
+          )}
+          <ProductForm
+            state={catalogState}
+            busy={catalogBusy}
+            onSave={saveProduct}
+            onClose={() => setProductEditor(null)}
+            onDirty={() => onDirtyChange?.(true)}
+          />
+        </Modal>
+      )}
+    </>
   );
 }
 export function PaymentForm({
