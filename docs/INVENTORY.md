@@ -28,7 +28,7 @@ Hər inventar kartı bir əsas vahiddir; yalnız tam ədəd, dəst və cüt qəb
 
 Store bütün mutasiyaları tək SQLite tranzaksiyasında aparır. Qaimə, anbar hərəkətləri, jurnal, inventar kartları və audit birlikdə tamamlanır və ya geri qaytarılır. Təkrar eyni qaimə və istifadə sənədi əlavə hərəkət yaratmır. Qaimə düzəlişi əvvəlki versiyanı əks yazılışla bağlayır; dəyişdirilmiş köhnə forma versiyası rədd edilir.
 
-Anbar hərəkətləri silinmir və dəyişdirilmir. Şirkət, bağlı dövr və istifadə olunan əsas vahid üçün verilənlər bazası məhdudiyyətləri var. Nomenklaturalı sənədi Excel cəmləri ilə əvəz etmək qadağandır.
+Anbar hərəkətləri silinmir və dəyişdirilmir. Şirkət, bağlı dövr və istifadə olunan vahidlər və çevirmə əmsalı üçün verilənlər bazası məhdudiyyətləri var. Nomenklaturalı sənədi Excel cəmləri ilə əvəz etmək qadağandır.
 
 ## Keçid və sərhədlər
 

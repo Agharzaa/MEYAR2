@@ -109,6 +109,7 @@ test('tenant boundaries, closed periods, used base units and immutable stock are
  assert.throws(()=>f.invoice([f.item(p,{warehouseId:otherWarehouse})]),/şirkətdə/);
  assert.throws(()=>f.call({op:'product.save',companyId:other,product:{...before.products[0],name:'Başqa'}}),/şirkətdə/);
  assert.throws(()=>f.call({op:'product.save',companyId:f.companyId,product:{...before.products[0],baseUnitId:'l',purchaseUnitId:'l'}}),/əsas vahidi/);
+ assert.throws(()=>f.call({op:'product.save',companyId:f.companyId,product:{...before.products[0],purchaseUnitId:'box',factor:'12'}}),/çevirmə əmsalı/);
  assert.throws(()=>f.store.db.exec('UPDATE stock_movements SET quantity=1'),/dəyişdirilə/);
  assert.throws(()=>f.store.db.exec('DELETE FROM stock_movements'),/silinə/);
  assert.deepEqual(f.state(),before);

@@ -19,6 +19,9 @@ CREATE TRIGGER IF NOT EXISTS product_tenant_update BEFORE UPDATE ON products BEG
  SELECT CASE WHEN NEW.company_id!=OLD.company_id THEN RAISE(ABORT,'Nomenklatura şirkəti dəyişdirilə bilməz') END;
  SELECT CASE WHEN NEW.base_unit_id!=OLD.base_unit_id AND EXISTS(SELECT 1 FROM stock_movements WHERE product_id=OLD.id) THEN RAISE(ABORT,'Hərəkəti olan nomenklaturanın əsas vahidi dəyişdirilə bilməz') END;
 END;
+CREATE TRIGGER IF NOT EXISTS product_conversion_update BEFORE UPDATE OF purchase_unit_id,factor ON products
+WHEN (NEW.purchase_unit_id!=OLD.purchase_unit_id OR NEW.factor!=OLD.factor) AND EXISTS(SELECT 1 FROM stock_movements WHERE product_id=OLD.id)
+BEGIN SELECT RAISE(ABORT,'Hərəkəti olan nomenklaturanın alış vahidi və çevirmə əmsalı dəyişdirilə bilməz'); END;
 CREATE TRIGGER IF NOT EXISTS warehouse_tenant_update BEFORE UPDATE OF company_id ON warehouses WHEN NEW.company_id!=OLD.company_id BEGIN SELECT RAISE(ABORT,'Anbar şirkəti dəyişdirilə bilməz'); END;
 CREATE TRIGGER IF NOT EXISTS asset_tenant_insert BEFORE INSERT ON assets BEGIN
  SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM products WHERE id=NEW.product_id AND company_id=NEW.company_id) OR NOT EXISTS(SELECT 1 FROM warehouses WHERE id=NEW.warehouse_id AND company_id=NEW.company_id) OR NOT EXISTS(SELECT 1 FROM invoices WHERE id=NEW.invoice_id AND company_id=NEW.company_id) THEN RAISE(ABORT,'İnventar kartı şirkətə uyğun deyil') END;
