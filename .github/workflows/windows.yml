@@ -74,6 +74,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          CURRENT_SHA=$(gh api "repos/$GH_REPO/commits/main" --jq .sha)
+          if [ "$CURRENT_SHA" != "$COMMIT_SHA" ]; then
+            echo "A newer main commit exists; only the current head may publish."
+            exit 0
+          fi
           VERSION=$(node -p "require('./package.json').version")
           TAG="v${VERSION}-review"
           if gh release view "$TAG" >/dev/null 2>&1; then
