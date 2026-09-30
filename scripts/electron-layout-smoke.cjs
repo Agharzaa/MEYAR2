@@ -6,6 +6,8 @@ const { pathToFileURL } = require('node:url');
 const { mkdir, writeFile } = require('node:fs/promises');
 const root = path.resolve(__dirname, '..');
 let store, manager, window;
+// Keep the test runner alive until it explicitly records success or failure.
+app.on('window-all-closed', () => {});
 const timeout = setTimeout(() => {
   console.error('Workspace validation timed out');
   app.exit(1);
@@ -271,7 +273,7 @@ app
     manager.confirmDiscard = async () => true;
     await clickLabel('Sənədi bağla');
     await until("!document.querySelector('.internal-pane[data-form=invoice]')");
-    assert.equal(manager.entries.get(window.id).dirty, false);
+    await waitFor(() => manager.entries.get(window.id)?.dirty === false, 'Host clears closed document dirty state');
     assert.equal(BrowserWindow.getAllWindows().length, 1);
     await assert.rejects(
       () => manager.create({ page: 'purchase', companyId }),
@@ -335,6 +337,7 @@ app
     app.exit(0);
   })
   .catch((error) => {
+    require('node:fs').writeFileSync(path.join(root, 'screenshots/layout-error.txt'), error.stack || String(error));
     console.error(error);
     clearTimeout(timeout);
     if (manager) for (const e of [...manager.entries.values()]) e.window.destroy();

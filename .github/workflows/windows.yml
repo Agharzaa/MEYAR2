@@ -37,8 +37,12 @@ jobs:
       - name: Validate native Electron window layout
         shell: pwsh
         run: |
-          & ./node_modules/electron/dist/electron.exe ./scripts/electron-layout-smoke.cjs
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $layoutProcess = Start-Process -FilePath "./node_modules/electron/dist/electron.exe" -ArgumentList "./scripts/electron-layout-smoke.cjs" -Wait -PassThru -RedirectStandardOutput "layout-stdout.log" -RedirectStandardError "layout-stderr.log"
+          Get-Content layout-stdout.log, layout-stderr.log
+          if ($layoutProcess.ExitCode -ne 0) { exit $layoutProcess.ExitCode }
+          if (!(Test-Path "screenshots/layout-results.json")) { throw "Electron layout validation did not reach completion." }
+          $layoutResult = Get-Content "screenshots/layout-results.json" -Raw | ConvertFrom-Json
+          if (!$layoutResult.inventory.automaticPosting -or !$layoutResult.inventory.oneNativeWindow) { throw "Inventory validation evidence is missing." }
       - uses: actions/upload-artifact@v4
         if: always()
         with:
