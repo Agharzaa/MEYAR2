@@ -594,7 +594,7 @@ test('DOM + SQLite: goods invoice creates nomenclature inline, converts packagin
   const product=await screen.findByRole('dialog',{name:'Yeni nomenklatura'});
   fireEvent.change(within(product).getByRole('textbox',{name:'Nomenklatura adı'}),{target:{value:'Qablaşdırılmış mal'}});
   await user.selectOptions(within(product).getByRole('combobox',{name:'Alış / qablaşdırma vahidi'}),'box');
-  fireEvent.change(within(product).getByRole('textbox',{name:'Bir alış vahidində əsas vahid sayı'}),{target:{value:'12'}});
+  fireEvent.change(within(product).getByRole('textbox',{name:/^Bir alış vahidində əsas vahid sayı/}),{target:{value:'12'}});
   await user.click(within(product).getByRole('button',{name:'Nomenklaturanı saxla'}));
   await waitFor(()=>assert.equal(screen.queryByRole('dialog',{name:'Yeni nomenklatura'}),null));
   assert.equal((within(dialog).getByRole('textbox',{name:'Qaimə nömrəsi'}) as HTMLInputElement).value,'UI-GOODS-1');

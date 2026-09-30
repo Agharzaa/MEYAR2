@@ -174,7 +174,7 @@ export function InvoiceForm({
               onChange={(e) => field('kind', e.target.value as InvoiceInput['kind'])}
             >
               <option value="service">Xidmət</option>
-              <option value="goods">Mal</option>
+              <option value="goods">Mal / material / əsas vəsait</option>
             </select>
           </Field>
           {v.kind==='service'&&<Field
