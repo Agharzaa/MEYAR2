@@ -217,6 +217,7 @@ export function InvoiceForm({
                 required
                 inputMode="decimal"
                 pattern="[0-9]+([.,][0-9]{1,2})?"
+                aria-label="ƏDV məbləği · AZN"
                 readOnly={v.kind==='goods'}
                 value={v.vat}
                 onChange={(e) => field('vat', e.target.value)}
