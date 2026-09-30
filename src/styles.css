@@ -2563,3 +2563,110 @@ textarea,
     padding-right: 9px;
   }
 }
+
+/* Actual document postings stay inside the application workspace. */
+.postings-body {
+  max-height: 70vh;
+  overflow: auto;
+}
+.postings-history {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.postings-history input {
+  width: auto;
+}
+.postings-scroll {
+  overflow-x: auto;
+}
+.postings-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.postings-table th,
+.postings-table td {
+  padding: 9px 10px;
+  border: 1px solid #d9d5c6;
+  text-align: left;
+}
+.postings-table th {
+  background: #f3efdc;
+}
+.postings-table small,
+.t-entry small {
+  display: block;
+  color: #6f6b60;
+  margin-top: 3px;
+}
+.postings-table .numeric,
+.postings-table tfoot th:last-child {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.posting-preview {
+  margin-top: 16px;
+  border-top: 1px solid #d9d5c6;
+  padding-top: 12px;
+}
+.t-accounts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(310px, 100%), 1fr));
+  gap: 18px;
+}
+.t-account {
+  border: 1px solid #d9d5c6;
+  background: #fffef8;
+}
+.t-account h3 {
+  font-size: 13px;
+  padding: 12px;
+  margin: 0;
+  border-bottom: 2px solid #77705d;
+  background: #f3efdc;
+}
+.t-sides {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+.t-sides > div {
+  padding: 10px;
+  min-width: 0;
+}
+.t-sides > div + div {
+  border-left: 2px solid #77705d;
+}
+.t-sides > div > strong {
+  display: block;
+  text-align: center;
+  font-size: 12px;
+}
+.t-entry {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 5px;
+  padding: 10px 0;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.t-entry b {
+  margin-left: auto;
+  white-space: nowrap;
+}
+.t-total {
+  border-top: 1px solid #b0aa98;
+  text-align: right;
+  font-weight: 700;
+  padding-top: 8px;
+  font-size: 12px;
+}
+.t-balance {
+  border-top: 1px solid #d9d5c6;
+  font-size: 12px;
+  padding: 10px;
+  margin: 0;
+}

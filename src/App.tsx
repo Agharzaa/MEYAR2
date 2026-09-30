@@ -1,3 +1,4 @@
+import { InvoicePostings } from './InvoicePostings';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   ArrowDownLeft,
@@ -225,13 +226,14 @@ export default function App({
         : {},
     ),
     [modal, setModal] = useState<ModalState>(null),
+    [postingsId, setPostingsId] = useState(''),
     [partnerOverInvoice, setPartnerOverInvoice] = useState(false),
     [newPartnerId, setNewPartnerId] = useState(''),
     [busy, setBusy] = useState(false),
     [loading, setLoading] = useState(true),
     [error, setError] = useState(''),
     [success, setSuccess] = useState(''),
-    [version, setVersion] = useState('0.2.1'),
+    [version, setVersion] = useState('0.2.2'),
     [reason, setReason] = useState(''),
     [closeDate, setCloseDate] = useState('');
   const activeWindow = windows[page] ?? initialWindow;
@@ -378,6 +380,7 @@ export default function App({
     if (!workspace) setState(null);
     setLoading(true);
     setCompanyId(id);
+    setPostingsId('');
     setModal(null);
     setPartnerOverInvoice(false);
     setNewPartnerId('');
@@ -602,7 +605,19 @@ export default function App({
     {
       key: 'status',
       label: 'Status',
-      render: (i) => <Status cancelled={i.status === 'cancelled'} />,
+      render: (i) => (
+        <div className="row-actions">
+          <Status cancelled={i.status === 'cancelled'} />
+          <button
+            className="button secondary"
+            disabled={busy || loading}
+            aria-label={'Dt/Kt ' + i.number}
+            onClick={() => setPostingsId(i.id)}
+          >
+            Dt/Kt
+          </button>
+        </div>
+      ),
     },
     {
       key: 'actions',
@@ -1583,6 +1598,9 @@ export default function App({
             <span className="footer-version">v{version}</span>
           </span>
         </footer>
+      )}
+      {postingsId && state && (
+        <InvoicePostings state={state} invoiceId={postingsId} onClose={() => setPostingsId('')} />
       )}
       {modal && (
         <Modal

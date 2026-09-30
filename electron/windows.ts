@@ -93,7 +93,7 @@ export class WindowManager {
     )
       throw new Error('Əməliyyat pəncərənin şirkətinə uyğun deyil.');
     const result = this.store.call(command);
-    if (command.op !== 'state')
+    if (command.op !== 'state' && command.op !== 'invoice.postings')
       this.broadcast(
         'meyar:data-changed',
         command.op === 'company.create' ? (result as MutationResult).id : command.companyId,

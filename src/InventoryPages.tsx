@@ -3,7 +3,8 @@ import { Plus, SquarePen, Trash2 } from 'lucide-react';
 import { DataTable, Field, Modal, money, day, today } from './components';
 import type { Command, State } from '../shared/types';
 import {
-  categoryNames,
+  categoryAccounts,
+  inventoryAccounts,
   type ItemCategory,
   type Product,
   type ProductInput,
@@ -146,23 +147,28 @@ export function ProductForm({
               onChange={(e) => field('factor', e.target.value)}
             />
           </Field>
-          <Field label="İlkin uçot kateqoriyası">
+          <Field label="İlkin uçot hesabı">
             <select
               disabled={busy}
-              value={v.category}
-              onChange={(e) => field('category', e.target.value as ItemCategory)}
+              value={v.account ?? categoryAccounts[v.category]}
+              onChange={(e) => {
+                const a = inventoryAccounts.find((a) => a.code === e.target.value)!;
+                onDirty?.();
+                set((s) => ({ ...s, account: a.code, category: a.category }));
+              }}
             >
-              {Object.entries(categoryNames).map(([id, name]) => (
-                <option key={id} value={id}>
-                  {name}
+              {inventoryAccounts.map((a) => (
+                <option key={a.code} value={a.code}>
+                  {a.code} · {a.name}
                 </option>
               ))}
             </select>
           </Field>
         </div>
         <p className="form-note">
-          Alışda istifadə məqsədinə uyğun kateqoriya ayrıca seçilir. Əsas vahid üzrə anbar qalığı
-          saxlanılır. Hərəkət yarandıqdan sonra vahidlər və çevirmə əmsalı dəyişdirilmir.
+          Seçilmiş hesab qaimə sətrinə avtomatik gəlir; sənəddə dəyişmək mümkündür. Əsas vahid üzrə
+          anbar qalığı saxlanılır. Hərəkət yarandıqdan sonra vahidlər və çevirmə əmsalı
+          dəyişdirilmir.
         </p>
       </div>
       <div className="modal-actions">
@@ -377,8 +383,9 @@ export function InventoryPanel({
             },
             {
               key: 'category',
-              label: 'İlkin kateqoriya',
-              render: (p) => categoryNames[p.category],
+              label: 'Uçot hesabı',
+              render: (p) =>
+                p.account + ' · ' + inventoryAccounts.find((a) => a.code === p.account)?.name,
             },
             { key: 'barcode', label: 'Barkod / artikul', render: (p) => p.barcode },
           ]}
@@ -410,7 +417,14 @@ export function InventoryPanel({
             { key: 'code', label: 'Kod', render: (s) => s.productCode },
             { key: 'name', label: 'Nomenklatura', render: (s) => s.productName },
             { key: 'warehouse', label: 'Anbar', render: (s) => s.warehouseName },
-            { key: 'category', label: 'Kateqoriya', render: (s) => categoryNames[s.category] },
+            {
+              key: 'category',
+              label: 'Uçot hesabı',
+              render: (s) =>
+                categoryAccounts[s.category] +
+                ' · ' +
+                inventoryAccounts.find((a) => a.category === s.category)?.name,
+            },
             { key: 'quantity', label: 'Miqdar', numeric: true, render: (s) => s.quantity },
             { key: 'unit', label: 'Vahid', render: (s) => s.unitName },
             {

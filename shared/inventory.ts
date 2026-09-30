@@ -4,16 +4,35 @@ export const categoryNames: Record<ItemCategory, string> = {
   material: 'Material / sərfiyyat',
   asset: 'Əsas vəsait',
 };
-export const categoryAccounts: Record<ItemCategory, string> = {
+export type InventoryAccount = '205' | '201' | '113';
+export const categoryAccounts: Record<ItemCategory, InventoryAccount> = {
   goods: '205',
   material: '201',
   asset: '113',
 };
+export const inventoryAccounts: { code: InventoryAccount; name: string; category: ItemCategory }[] =
+  [
+    { code: '205', name: 'Mallar', category: 'goods' },
+    { code: '201', name: 'Material ehtiyatları', category: 'material' },
+    { code: '113', name: 'Əsas vəsait üzrə kapitallaşdırılan məsrəflər', category: 'asset' },
+  ];
+/** Category is retained for compatibility with existing stock registers. */
+export function resolveInventoryAccount(
+  account: unknown,
+  category: ItemCategory,
+): InventoryAccount {
+  if (!Object.hasOwn(categoryAccounts, category)) throw new Error('Uçot hesabı seçilməlidir.');
+  const expected = categoryAccounts[category];
+  if (account !== undefined && account !== expected)
+    throw new Error('Uçot hesabı nomenklaturanın uçot növünə uyğun deyil.');
+  return expected;
+}
 export interface Unit {
   id: string;
   name: string;
 }
 export interface ProductInput {
+  account?: InventoryAccount;
   id?: string;
   code: string;
   name: string;
@@ -25,6 +44,7 @@ export interface ProductInput {
   category: ItemCategory;
 }
 export interface Product extends ProductInput {
+  account: InventoryAccount;
   id: string;
   baseUnitName: string;
   purchaseUnitName: string;
@@ -34,6 +54,7 @@ export interface Warehouse {
   name: string;
 }
 export interface InvoiceItemInput {
+  account?: InventoryAccount;
   productId: string;
   warehouseId: string;
   category: ItemCategory;
@@ -43,6 +64,7 @@ export interface InvoiceItemInput {
   vat: string;
 }
 export interface InvoiceItem extends InvoiceItemInput {
+  account: InventoryAccount;
   productName: string;
   productCode: string;
   unitName: string;

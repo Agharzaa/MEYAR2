@@ -1,17 +1,15 @@
-Meyar ERP 2 — 0.2.1
+Meyar ERP 2 — 0.2.2
 
-- Nomenklatura kartları: kod, ad, qrup, barkod, əsas və alış vahidi.
-- Ədəd, litr, kq, metr, m², cüt, dəst, qutu və digər vahidlər. Qablaşdırma çevirməsi: məsələn, 1 qutu = 12 ədəd.
-- Mal qaiməsində çoxsaylı məhsul sətirləri; hər sətirdə mal, material və ya əsas vəsait kateqoriyası, anbar, miqdar, vahid, qiymət və ƏDV.
-- Qaimədən çıxmadan yeni nomenklatura yaratmaq.
-- Saxlamada avtomatik müxabirləşmə və anbar hərəkəti. Satışda orta çəkili maya dəyəri; mənfi qalığa yol verilmir.
-- Materialların ayrıca istifadəyə verilməsi və ləğvi.
-- Əsas vəsait alışında hər ədəd üçün inventar kartı; ayrıca istismara vermə, məsul şəxs, yer və faydalı istifadə müddəti.
-- Bir Windows pəncərəsi daxilində bölmələr və sənədlər; əvvəlki sarı-krem rənglər və 7:93 filtr/iş sahəsi saxlanılır.
+- Qaimə sətrində uçot hesabının açıq seçimi: 205 — Mallar, 201 — Material ehtiyatları, 113 — Əsas vəsait üzrə kapitallaşdırılan məsrəflər.
+- Nomenklatura kartının ilkin uçot hesabı qaiməyə avtomatik gəlir; konkret alışda dəyişdirilə bilər.
+- Saxlamazdan əvvəl alış üzrə Dt/Kt ilkin baxışı: seçilmiş hesab / 531, ƏDV üçün 241 / 531.
+- Qaimə siyahısında və redaktə formasında Dt/Kt düyməsi: bazaya yazılmış müxabirləşmələr və T-hesablar. Cari versiya, əvvəlki versiyalar və əks yazılışlar görünür.
+- Yeni anbar yazılışlarında nomenklatura kodu, adı, anbar və əsas vahidlə miqdar analitikası.
+- Ödənilmiş və bağlı dövrdə olan əvvəlki qaimələrin eyni məlumatla saxlanılması əlavə yazılış yaratmır.
+- Bütün görünüşlər proqram daxilində açılır.
 
-Quraşdırma: əvvəlki Meyar pəncərələrini bağlayın və Meyar-ERP-2-Setup-0.2.1.exe faylını quraşdırın.
-Mövcud uçot bazası saxlanılır; yeni cədvəllər miqrasiya ilə əlavə edilir.
-Əvvəlki və cəmlərlə Excel-dən idxal edilən mal qaimələri maliyyə uçotunda qalır. Məhsul detalları olmadığından onlar üçün miqdar uydurulmur; anbar uçotu üçün qaiməni açıb sətirləri doldurun.
-Amortizasiya, anbarlararası transfer, qaytarma sənədləri, partiya/seriya uçotu, valyuta və DVX canlı inteqrasiyası bu versiyaya daxil deyil.
+Quraşdırma: əvvəlki Meyar pəncərələrini bağlayın və Meyar-ERP-2-Setup-0.2.2.exe faylını quraşdırın.
+Mövcud uçot bazası və tarixi jurnallar saxlanılır.
+Bu versiyada ehtiyat hesabları 201/205/113 ilə məhduddur; ixtiyari hesab/subhesab yaratmaq və əl ilə jurnal redaktəsi daxil deyil. Amortizasiya, valyuta və DVX canlı inteqrasiyası daxil deyil.
 
 Bu, sınaq üçün imzalanmamış Windows versiyasıdır. Avtomatik yenilənmə aktiv deyil.

@@ -82,6 +82,14 @@ export interface LedgerRow {
   sourceNumber: string;
   reversal: number;
 }
+export interface DocumentPostings {
+  id: string;
+  number: string;
+  version: number;
+  status: 'posted' | 'cancelled';
+  entries: (LedgerRow & { version: number })[];
+}
+export type CommandResult = State | MutationResult | DocumentPostings;
 export interface Balance {
   partnerId: string;
   name: string;
@@ -115,6 +123,7 @@ export interface State extends InventoryState {
   report: ReportFilter;
 }
 export type Command =
+  | { op: 'invoice.postings'; companyId: string; id: string }
   | { op: 'product.save'; companyId: string; product: ProductInput }
   | { op: 'warehouse.save'; companyId: string; name: string }
   | { op: 'unit.save'; companyId: string; code: string; name: string }
@@ -151,7 +160,7 @@ export interface MutationResult {
 }
 export interface DesktopAPI {
   windows?: WindowBridge;
-  call(command: Command): Promise<State | MutationResult>;
+  call(command: Command): Promise<CommandResult>;
   backup(): Promise<string | null>;
   importFile(direction: Direction): Promise<ImportRow[] | null>;
   template(): Promise<string | null>;

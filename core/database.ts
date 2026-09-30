@@ -4,9 +4,12 @@ import type { SQLInputValue } from 'node:sqlite';
 import { Inventory } from './inventory.js';
 import { inventorySchema, unitSeeds } from './inventory-schema.js';
 import { accounts, schema } from './schema.js';
+import { resolveInventoryAccount } from '../shared/inventory.js';
 import { cents, decimal, text, optional, date, taxId, safe, sum } from './money.js';
 import type {
   Command,
+  CommandResult,
+  DocumentPostings,
   Company,
   ImportRow,
   Invoice,
@@ -27,6 +30,15 @@ type Line = {
   debit: number;
   credit: number;
 };
+function canonicalInvoiceInput(json: string): string {
+  const input = JSON.parse(json) as InvoiceInput;
+  if (input.items?.length)
+    input.items = input.items.map((i) => ({
+      ...i,
+      account: resolveInventoryAccount(i.account, i.category),
+    }));
+  return JSON.stringify(input);
+}
 export class Store {
   readonly db: DatabaseSync;
   private readonly inventory: Inventory;
@@ -285,11 +297,17 @@ export class Store {
       throw new Error(
         'Qaimə başqa pəncərədə dəyişdirilib. Bu pəncərəni bağlayıb qaiməni yenidən açın; yazdığınız məlumatı əvvəlcə qoruyun.',
       );
-    if (existing && !raw.id && !importing && existing.input !== JSON.stringify(input))
+    if (
+      existing &&
+      !raw.id &&
+      !importing &&
+      canonicalInvoiceInput(String(existing.input)) !== JSON.stringify(input)
+    )
       throw new Error('Bu qaimə artıq mövcuddur. Dəyişiklik üçün mövcud qaiməni açın.');
     if (existing?.status === 'cancelled')
       throw new Error('Ləğv olunmuş qaimənin nömrəsi təkrar istifadə edilə bilməz.');
-    if (existing?.input === JSON.stringify(input)) return { id: String(existing.id), unchanged: 1 };
+    if (existing && canonicalInvoiceInput(String(existing.input)) === JSON.stringify(input))
+      return { id: String(existing.id), unchanged: 1 };
     this.open(companyId, d);
     const id = existing ? String(existing.id) : uuid(),
       version = existing ? Number(existing.version) + 1 : 1;
@@ -512,7 +530,28 @@ export class Store {
     );
     return { id };
   }
-  call(command: Command): State | MutationResult {
+  private invoicePostings(companyId: string, id: string): DocumentPostings {
+    this.company(companyId);
+    const invoice = this.one(
+      'SELECT id,number,version,status FROM invoices WHERE company_id=? AND id=?',
+      companyId,
+      text(id, 'Qaimə'),
+    );
+    if (!invoice) throw new Error('Bu şirkətdə qaimə tapılmadı.');
+    const entries = this.all(
+      `SELECT e.id,j.date,e.account,COALESCE(p.name,'') AS partnerName,e.subaccount,e.debit,e.credit,j.description,j.source_number AS sourceNumber,j.reversal,j.version FROM entries e JOIN journals j ON j.id=e.journal_id LEFT JOIN partners p ON p.id=e.partner_id WHERE j.company_id=? AND j.source_type='invoice' AND j.source_id=? ORDER BY j.version,j.reversal,e.rowid`,
+      companyId,
+      id,
+    ) as unknown as DocumentPostings['entries'];
+    return {
+      id: String(invoice.id),
+      number: String(invoice.number),
+      version: Number(invoice.version),
+      status: invoice.status as DocumentPostings['status'],
+      entries,
+    };
+  }
+  call(command: Command): CommandResult {
     if (
       !command ||
       typeof command !== 'object' ||
@@ -521,6 +560,8 @@ export class Store {
     )
       throw new Error('Əməliyyat düzgün deyil.');
     if (command.op === 'state') return this.snapshot(command.companyId, command.filter);
+    if (command.op === 'invoice.postings')
+      return this.tx(() => this.invoicePostings(command.companyId, command.id), true);
     return this.tx(() => {
       switch (command.op) {
         case 'product.save':

@@ -4,6 +4,7 @@ import { cents, decimal, text, optional, date, safe, sum } from './money.js';
 import { scaled, unscaled, converted, lineAmount, QUANTITY_SCALE } from './quantity.js';
 import {
   categoryAccounts,
+  resolveInventoryAccount,
   type ProductInput,
   type InvoiceItemInput,
   type InvoiceItem,
@@ -117,6 +118,7 @@ export class Inventory {
       throw new Error('Ölçü vahidi tapılmadı.');
     if (!Object.hasOwn(categoryAccounts, raw.category))
       throw new Error('Uçot kateqoriyası seçilməlidir.');
+    resolveInventoryAccount(raw.account, raw.category);
     const existing = raw.id
       ? this.product(companyId, raw.id)
       : this.one('SELECT * FROM products WHERE company_id=? AND code=?', companyId, code);
@@ -181,6 +183,7 @@ export class Inventory {
     return raw.map((r, index) => {
       if (!r || typeof r !== 'object') throw new Error('Qaimə sətri düzgün deyil.');
       const p = this.product(companyId, r.productId);
+      const account = resolveInventoryAccount(r.account, r.category);
       this.warehouse(companyId, r.warehouseId);
       if (
         !Object.hasOwn(categoryAccounts, r.category) ||
@@ -219,6 +222,7 @@ export class Inventory {
         baseQuantity: unscaled(baseQuantity),
         netCents: net,
         vatCents: vat,
+        account,
       };
     });
   }
@@ -321,11 +325,22 @@ export class Inventory {
     for (const [index, item] of items.entries()) {
       const q = scaled(item.baseQuantity),
         out = direction === 'sale',
-        account = categoryAccounts[item.category];
+        account = item.account;
       this.chronology(companyId, item.productId, item.warehouseId, item.category, d, out);
       const value = out
         ? this.cost(companyId, item.productId, item.warehouseId, item.category, q)
         : item.netCents;
+      const warehouse = this.warehouse(companyId, item.warehouseId);
+      const analytic =
+        item.productCode +
+        ' · ' +
+        item.productName +
+        ' / ' +
+        warehouse.name +
+        ' / ' +
+        item.baseQuantity +
+        ' ' +
+        item.baseUnitName;
       this.movement(
         companyId,
         id,
@@ -343,13 +358,13 @@ export class Inventory {
       );
       if (out)
         result.push(
-          { account: '701', subaccount: item.productName, debit: value, credit: 0 },
-          { account, subaccount: item.productName, debit: 0, credit: value },
+          { account: '701', subaccount: analytic, debit: value, credit: 0 },
+          { account, subaccount: analytic, debit: 0, credit: value },
         );
       else
         result.push({
           account,
-          subaccount: item.productCode + ' · ' + item.productName,
+          subaccount: analytic,
           debit: value,
           credit: 0,
         });
@@ -671,6 +686,7 @@ export class Inventory {
       purchaseUnitId: String(p.purchase_unit_id),
       factor: unscaled(Number(p.factor)),
       category: p.category as ItemCategory,
+      account: categoryAccounts[p.category as ItemCategory],
       baseUnitName: String(p.base_name),
       purchaseUnitName: String(p.purchase_name),
     }));

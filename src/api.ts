@@ -1,11 +1,4 @@
-import type {
-  Command,
-  DesktopAPI,
-  Direction,
-  ImportRow,
-  MutationResult,
-  State,
-} from '../shared/types';
+import type { Command, CommandResult, DesktopAPI, Direction, ImportRow } from '../shared/types';
 async function response<T>(res: Response): Promise<T> {
   const data = await res.json().catch(() => {
     throw new Error('Proqramdan düzgün cavab alınmadı. Bağlantını yoxlayın.');
@@ -21,7 +14,7 @@ export const api: DesktopAPI = {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(command),
-        }).then(response<State | MutationResult>);
+        }).then(response<CommandResult>);
   },
   backup() {
     if (window.meyar) return window.meyar.backup();

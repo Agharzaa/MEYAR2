@@ -670,12 +670,20 @@ test('DOM + SQLite: goods invoice creates nomenclature inline, converts packagin
       assetId,
     );
     assert.equal(
-      (within(dialog).getByRole('combobox', { name: 'Kateqoriya 2' }) as HTMLSelectElement).value,
-      'asset',
+      (within(dialog).getByRole('combobox', { name: 'Uçot hesabı 2' }) as HTMLSelectElement).value,
+      '113',
     );
     fireEvent.change(within(dialog).getByRole('textbox', { name: 'Vahid qiyməti 2' }), {
       target: { value: '500' },
     });
+    await user.selectOptions(
+      within(dialog).getByRole('combobox', { name: 'Uçot hesabı 1' }),
+      '201',
+    );
+    assert.match(
+      within(dialog).getByRole('region', { name: 'Dt/Kt ilkin baxış' }).textContent!,
+      /201531/,
+    );
     await user.click(within(dialog).getByRole('button', { name: '18%' }));
     assert.equal(
       (within(dialog).getByRole('textbox', { name: 'Əsas məbləğ · AZN' }) as HTMLInputElement)
@@ -698,6 +706,39 @@ test('DOM + SQLite: goods invoice creates nomenclature inline, converts packagin
     assert.equal(s.assets.length, 1);
     assert.equal(s.assets[0].costCents, 50000);
     assert.equal(s.balances[0].payable, 87320);
+    assert.equal(s.invoices[0].items![0].account, '201');
+    assert.equal(s.ledger.find((e) => e.account === '201')!.debit, 24000);
+    await user.click(screen.getByRole('button', { name: 'Dt/Kt UI-GOODS-1' }));
+    const postings = await screen.findByRole('dialog', { name: 'Dt/Kt · UI-GOODS-1' });
+    assert.ok(within(postings).getByRole('table', { name: 'Sənədin müxabirləşmələri' }));
+    await user.click(within(postings).getByRole('button', { name: 'T-hesablar' }));
+    assert.match(
+      within(postings).getByRole('region', { name: 'T-hesab 201' }).textContent!,
+      /240,00/,
+    );
+    assert.match(
+      within(postings).getByRole('region', { name: 'T-hesab 531' }).textContent!,
+      /873,20/,
+    );
+    await user.click(within(postings).getByRole('button', { name: 'Bağla', exact: true }));
+    await user.click(screen.getByRole('button', { name: 'Düzəliş et UI-GOODS-1' }));
+    const edit = await screen.findByRole('dialog', { name: 'Qaiməyə düzəliş · UI-GOODS-1' });
+    fireEvent.change(within(edit).getByRole('textbox', { name: 'Təyinat' }), {
+      target: { value: 'Saxlanmamış qeyd' },
+    });
+    await user.click(within(edit).getByRole('button', { name: 'Dt/Kt', exact: true }));
+    const actual = await screen.findByRole('dialog', { name: 'Dt/Kt · UI-GOODS-1' });
+    await user.click(within(actual).getByRole('button', { name: 'Bağla', exact: true }));
+    assert.equal(
+      (within(edit).getByRole('textbox', { name: 'Təyinat' }) as HTMLTextAreaElement).value,
+      'Saxlanmamış qeyd',
+    );
+    assert.deepEqual(
+      state(),
+      s,
+      'Viewing postings preserves the unsaved form and does not write to SQLite',
+    );
+    await user.click(within(edit).getByRole('button', { name: 'Bağla', exact: true }));
     await user.click(screen.getByRole('button', { name: 'Anbar', exact: true }));
     await screen.findByRole('heading', { name: 'Anbar uçotu' });
     await screen.findByText('Qablaşdırılmış mal');

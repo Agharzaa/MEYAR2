@@ -1,12 +1,13 @@
 import { Plus, Trash2 } from 'lucide-react';
 import { lineAmount } from '../core/quantity';
 import { decimal } from '../core/money';
-import { categoryNames, type InvoiceItemInput, type ItemCategory } from '../shared/inventory';
+import { categoryAccounts, inventoryAccounts, type InvoiceItemInput } from '../shared/inventory';
 import type { State, Direction } from '../shared/types';
 export const emptyItem = (state: State): InvoiceItemInput => ({
   productId: '',
   warehouseId: state.warehouses[0]?.id ?? '',
   category: 'goods',
+  account: '205',
   unitId: 'pcs',
   quantity: '1',
   unitPrice: '',
@@ -49,7 +50,7 @@ export function InvoiceItems({
             <tr>
               {[
                 'Nomenklatura',
-                'Kateqoriya',
+                'Uçot hesabı',
                 'Anbar',
                 'Miqdar',
                 'Vahid',
@@ -92,6 +93,10 @@ export function InvoiceItems({
                               direction === 'sale' && p?.category === 'asset'
                                 ? 'goods'
                                 : (p?.category ?? 'goods'),
+                            account:
+                              direction === 'sale' && p?.category === 'asset'
+                                ? '205'
+                                : (p?.account ?? '205'),
                           });
                         }}
                       >
@@ -115,16 +120,19 @@ export function InvoiceItems({
                   </td>
                   <td>
                     <select
-                      aria-label={'Kateqoriya ' + (index + 1)}
+                      aria-label={'Uçot hesabı ' + (index + 1)}
                       disabled={busy}
-                      value={row.category}
-                      onChange={(e) => patch(index, { category: e.target.value as ItemCategory })}
+                      value={row.account ?? categoryAccounts[row.category]}
+                      onChange={(e) => {
+                        const selected = inventoryAccounts.find((a) => a.code === e.target.value)!;
+                        patch(index, { account: selected.code, category: selected.category });
+                      }}
                     >
-                      {Object.entries(categoryNames)
-                        .filter(([id]) => direction === 'purchase' || id !== 'asset')
-                        .map(([id, name]) => (
-                          <option key={id} value={id}>
-                            {name}
+                      {inventoryAccounts
+                        .filter((a) => direction === 'purchase' || a.code !== '113')
+                        .map((a) => (
+                          <option key={a.code} value={a.code}>
+                            {a.code} · {a.name}
                           </option>
                         ))}
                     </select>

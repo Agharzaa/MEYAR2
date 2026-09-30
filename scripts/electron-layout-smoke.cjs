@@ -345,12 +345,27 @@ app
     assert.equal(inventoryState.stock[0].quantity, '24');
     assert.equal(inventoryState.stock[0].valueCents, 24000);
     assert.equal(inventoryState.invoices.find((i) => i.number === 'WINDOWS-GOODS').items.length, 1);
+    assert.equal(
+      inventoryState.invoices.find((i) => i.number === 'WINDOWS-GOODS').items[0].account,
+      '205',
+    );
+    await evaluate('document.querySelector(\'[aria-label="Dt/Kt WINDOWS-GOODS"]\').click()');
+    await until("document.querySelector('dialog[open] .postings-table') !== null");
+    await click('T-hesablar', "document.querySelector('dialog[open]')");
+    await until('document.querySelector(\'[aria-label="T-hesab 205"]\') !== null');
+    assert.equal(BrowserWindow.getAllWindows().length, 1);
+    await writeFile(
+      path.join(root, 'screenshots/invoice-postings.png'),
+      (await window.webContents.capturePage()).toPNG(),
+    );
+    await click('Bağla', "document.querySelector('dialog[open]')");
     await click('Anbar', "document.querySelector('.main-nav')");
     await pane('stock');
     await until(active + ".textContent.includes('Qutu ilə mal')");
     results.stock = await layout('inventory-stock-1050', 1050, 700);
     assert.equal(BrowserWindow.getAllWindows().length, 1);
     results.inventory = {
+      accountPostings: true,
       itemizedInvoice: true,
       packagingConversion: true,
       automaticPosting: true,

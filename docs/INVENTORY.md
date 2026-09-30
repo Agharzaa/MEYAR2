@@ -1,6 +1,6 @@
 # Nomenklatura və anbar uçotu
 
-Nomenklatura kartı məhsulu müəyyən edir. Alış sətirindəki istifadə məqsədi uçot kateqoriyasını müəyyən edir; kartdakı kateqoriya yalnız başlanğıc seçimdir.
+Nomenklatura kartı məhsulu və ilkin uçot hesabını müəyyən edir. Qaimə sətrində hesab kodu ayrıca seçilir: 205, 201 və ya 113. Kartdakı hesab başlanğıc seçimdir; sətrin hesabı faktiki yazılışı müəyyən edir.
 
 | Hadisə                            | Debet                | Kredit                         |
 | --------------------------------- | -------------------- | ------------------------------ |
@@ -41,3 +41,19 @@ Avtomatik amortizasiya, anbarlararası transfer, qaytarma sənədləri, partiya/
 tests/inventory.test.ts: dəqiqlik, qarışıq alış, qablaşdırma, orta maya dəyəri, atomik geri qaytarma, ləğv/düzəliş, inventar/istismar, şirkət və dövr sərhədləri, miqrasiya və ehtiyat nüsxə.
 tests/ui.test.tsx: qaimədən nomenklatura yaratmaq, iki kateqoriyalı alış, avtomatik məbləğ/ƏDV və anbar görünüşü.
 scripts/electron-layout-smoke.cjs: həqiqi Windows Electron pəncərəsində məhsul sətirləri, qablaşdırma, uçot, bir OS pəncərəsi və 7:93 sahə.
+
+## Uçot hesabı və Dt/Kt — 0.2.2
+
+Yeni qaimə sətirləri rəqəmli hesab kodunu JSON daxilində saxlayır. Daxili kateqoriya mövcud anbar registrləri ilə uyğunluq üçün qalır; hesab və kateqoriya uyğunsuzluğu bütöv tranzaksiyanı rədd edir. Nomenklatura kartının hesabı mövcud kateqoriyadan birqiymətli alınır. Köhnə sətirlərdə hesab yoxdursa, eyni xəritə tətbiq olunur. Müqayisə zamanı normallaşdırma eyni sənədin yenidən keçirilməsinin qarşısını alır; tarixi jurnallar dəyişdirilmir.
+
+`invoice.postings` yalnız şirkət və sənəd ID-si üzrə faktiki jurnal sətirlərini oxuyur; hesabat tarix/account filtri və eyni nömrəli başqa qaimə nəticəyə qarışmır. Oxu audit və məlumat yenilənməsi bildirişi yaratmır. T-hesab saldosu yalnız həmin sənədin seçilmiş yazılışlarına aiddir, bütün hesabın qalığı deyil. Saxlanmamış forma dəyişiklikləri faktiki yazılışlara daxil edilmir. Alışın ilkin baxışı ayrıca işarələnir; satışın maya dəyəri saxlamada hesablanır və faktiki Dt/Kt görünüşündə açılır.
+
+1C mənbələri:
+
+- Azərbaycan lokalizasiyası: https://v8.1c.ru/static/1s-bukhgalteriya-8-dlya-azerbaydzhana/
+- Nomenklatura üzrə uçot hesabının avtomatik və əl ilə seçilməsi (mexanizmin izahı): https://buh.ru/articles/sposoby-postupleniya-mpz-formirovanie-ikh-fakticheskoy-sebestoimosti-v-1s-bukhgalterii-8.html
+- Hesab təhlili, hesab kartları və standart hesabatlar: https://v8.1c.ru/buhv8/ch/
+
+Azərbaycan hesab kodları tətbiq olunur; Rusiya konfiqurasiyasının 10/41/60 hesabları köçürülmür. Bu dəyişiklik 1C-nin tam funksional surəti deyil. Dəstəklənən ehtiyat hesabları 201/205/113-dür; ixtiyari subhesab yaratmaq və əl ilə jurnal redaktəsi əlavə edilməyib.
+
+Əlavə yoxlamalar: hesab seçiminin real 201 yazılışına təsiri, hesab/kateqoriya uyğunsuzluğunda atomik rədd, şirkət/sənəd sərhədləri, düzəliş və ləğv tarixçəsi, ödənilmiş və bağlı dövrdə köhnə qaimənin təkrarsız saxlanılması, T-hesab görünüşü və formanın qaralamasının saxlanması. Windows testi Dt/Kt pəncərəsinin əsas OS pəncərəsi daxilində açılmasını da yoxlayır.

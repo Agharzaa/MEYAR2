@@ -42,7 +42,7 @@ jobs:
           if ($layoutProcess.ExitCode -ne 0) { exit $layoutProcess.ExitCode }
           if (!(Test-Path "screenshots/layout-results.json")) { throw "Electron layout validation did not reach completion." }
           $layoutResult = Get-Content "screenshots/layout-results.json" -Raw | ConvertFrom-Json
-          if (!$layoutResult.inventory.automaticPosting -or !$layoutResult.inventory.oneNativeWindow) { throw "Inventory validation evidence is missing." }
+          if (!$layoutResult.inventory.accountPostings -or !$layoutResult.inventory.automaticPosting -or !$layoutResult.inventory.oneNativeWindow) { throw "Inventory validation evidence is missing." }
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -8,7 +8,13 @@ import { Store } from '../core/database.js';
 import { schema } from '../core/schema.js';
 import { scaled, unscaled, converted, lineAmount } from '../core/quantity.js';
 import { decimal, sum } from '../core/money.js';
-import type { Command, MutationResult, InvoiceInput, State } from '../shared/types.js';
+import type {
+  Command,
+  MutationResult,
+  InvoiceInput,
+  State,
+  DocumentPostings,
+} from '../shared/types.js';
 import type { InvoiceItemInput, ProductInput } from '../shared/inventory.js';
 const report = { from: '2026-01-01', to: '2026-12-31', account: '' };
 function fixture(t: TestContext, path = ':memory:') {
@@ -85,6 +91,103 @@ function balanced(s: State) {
   ] as const)
     assert.equal(sum(...s.trial.map((r) => r[d])), sum(...s.trial.map((r) => r[c])));
 }
+test('explicit account drives inventory posting and rejects inconsistent account classification atomically', (t) => {
+  const f = fixture(t),
+    p = f.product();
+  assert.equal(f.state().products[0].account, '205');
+  const before = f.state();
+  assert.throws(() => f.invoice([f.item(p, { account: '201' })]), /Uçot hesabı/);
+  assert.deepEqual(f.state(), before);
+  assert.throws(() => f.product({ account: '113' }), /Uçot hesabı/);
+  assert.deepEqual(f.state(), before);
+  const id = f.invoice([
+    f.item(p, { account: '201', category: 'material', quantity: '3', vat: '5.40' }),
+  ]).id!;
+  const s = f.state();
+  assert.equal(s.invoices[0].items![0].account, '201');
+  assert.equal(s.stock[0].category, 'material');
+  const postings = f.store.call({
+    op: 'invoice.postings',
+    companyId: f.companyId,
+    id,
+  }) as DocumentPostings;
+  assert.equal(postings.entries.find((e) => e.account === '201')!.debit, 3000);
+  assert.match(
+    postings.entries.find((e) => e.account === '201')!.subaccount,
+    /P-1.*Əsas anbar.*3.*ədəd/i,
+  );
+  assert.equal(postings.entries.find((e) => e.account === '531')!.credit, 3540);
+  assert.deepEqual(f.state(), s, 'Reading postings must not mutate audit, documents or stock');
+});
+test('document postings are isolated by company and source ID and retain edit and cancellation history', (t) => {
+  const f = fixture(t),
+    p = f.product();
+  const id = f.invoice([f.item(p)], { number: 'SAME-NUMBER' }).id!;
+  const otherPartner = f.call({
+    op: 'partner.save',
+    companyId: f.companyId,
+    name: 'Başqa təchizatçı',
+    taxId: '3333333333',
+  }).id!;
+  f.invoice([f.item(p, { quantity: '2' })], { number: 'SAME-NUMBER', partnerId: otherPartner });
+  let doc = f.store.call({
+    op: 'invoice.postings',
+    companyId: f.companyId,
+    id,
+  }) as DocumentPostings;
+  assert.equal(sum(...doc.entries.map((e) => e.debit)), 1000);
+  const foreign = f.call({ op: 'company.create', name: 'Başqa şirkət', taxId: '4444444444' }).id!;
+  assert.throws(
+    () => f.store.call({ op: 'invoice.postings', companyId: foreign, id }),
+    /qaimə tapılmadı/,
+  );
+  f.invoice([f.item(p, { quantity: '3' })], { id, expectedVersion: 1, number: 'SAME-NUMBER' });
+  f.cancel(id);
+  doc = f.store.call({ op: 'invoice.postings', companyId: f.companyId, id }) as DocumentPostings;
+  assert.equal(doc.version, 2);
+  assert.equal(doc.status, 'cancelled');
+  assert.ok(doc.entries.some((e) => e.version === 1 && e.reversal === 1));
+  assert.ok(doc.entries.some((e) => e.version === 2 && e.reversal === 1));
+  for (const account of ['205', '531']) {
+    const rows = doc.entries.filter((e) => e.account === account);
+    assert.equal(sum(...rows.map((e) => e.debit - e.credit)), 0);
+  }
+});
+test('legacy item JSON gains account defaults without reposting a paid invoice in a closed period', (t) => {
+  const f = fixture(t),
+    p = f.product();
+  const id = f.invoice([f.item(p, { category: 'material' })]).id!;
+  const raw = JSON.parse(
+    String(f.store.db.prepare('SELECT input FROM invoices WHERE id=?').get(id)!.input),
+  );
+  for (const item of raw.items) delete item.account;
+  f.store.db.prepare('UPDATE invoices SET input=? WHERE id=?').run(JSON.stringify(raw), id);
+  f.call({
+    op: 'payment.save',
+    companyId: f.companyId,
+    payment: {
+      reference: 'PAID',
+      date: '2026-01-10',
+      partnerId: f.partnerId,
+      direction: 'out',
+      amount: '10',
+      bankAccount: '223',
+      invoiceId: id,
+      description: '',
+    },
+  });
+  f.call({ op: 'period.close', companyId: f.companyId, date: '2026-01-31' });
+  const before = f.state();
+  assert.deepEqual(
+    f.invoice([f.item(p, { category: 'material', account: '201' })], {
+      id,
+      expectedVersion: 1,
+      number: 'Q-1',
+    }),
+    { id, unchanged: 1 },
+  );
+  assert.deepEqual(f.state(), before);
+});
 test('quantity conversion and four-decimal prices use exact integer arithmetic', () => {
   assert.equal(scaled('0,000001'), 1);
   assert.equal(unscaled(-1234500), '-1.2345');
@@ -141,6 +244,13 @@ test('sales consume weighted average cost; insufficient stock rolls back every i
   assert.equal(s.stock[0].quantity, '16');
   assert.equal(s.stock[0].valueCents, 24000);
   assert.ok(s.ledger.some((r) => r.account === '701' && r.debit === 6000));
+  const postings = f.store.call({
+    op: 'invoice.postings',
+    companyId: f.companyId,
+    id: sale.id!,
+  }) as DocumentPostings;
+  assert.equal(postings.entries.find((e) => e.account === '701')!.debit, 6000);
+  assert.equal(postings.entries.find((e) => e.account === '205')!.credit, 6000);
   const before = s;
   assert.throws(
     () =>

@@ -13,6 +13,7 @@ import { Field, Modal, money, today } from './components';
 import { api } from './api';
 import { ProductForm } from './InventoryPages';
 import { InvoiceItems, emptyItem } from './InvoiceItems';
+import { InvoicePostings, PurchasePostingPreview } from './InvoicePostings';
 import { lineAmount } from '../core/quantity';
 import type { InvoiceItemInput, ProductInput } from '../shared/inventory';
 export function InvoiceForm({
@@ -37,6 +38,7 @@ export function InvoiceForm({
   onDirtyChange?: (dirty: boolean) => void;
 }) {
   const [vatError, setVatError] = useState('');
+  const [showPostings, setShowPostings] = useState(false);
   const [catalog, setCatalog] = useState<State | null>(null);
   const [productEditor, setProductEditor] = useState<number | null>(null);
   const [catalogBusy, setCatalogBusy] = useState(false);
@@ -87,6 +89,7 @@ export function InvoiceForm({
                 productId: p.id,
                 unitId: p.purchaseUnitId,
                 category: direction === 'sale' && p.category === 'asset' ? 'goods' : p.category,
+                account: direction === 'sale' && p.category === 'asset' ? '205' : p.account,
               }
             : row,
         ),
@@ -315,6 +318,7 @@ export function InvoiceForm({
               edin.
             </p>
           )}
+          <PurchasePostingPreview invoice={v} state={catalogState} />
           {vatError && <p role="alert">{vatError}</p>}
           <div className="form-total">
             <span>Qaimənin ümumi məbləği</span>
@@ -328,12 +332,21 @@ export function InvoiceForm({
               Yadda saxlandıqda müxabirləşmə avtomatik yaranır. ƏDV məbləğini sənədə uyğun daxil
               edin.
               {v.kind === 'goods'
-                ? ' Nomenklatura sətirləri üzrə anbar hərəkəti və kateqoriyaya uyğun uçot avtomatik yaranır.'
+                ? ' Nomenklatura sətirləri üzrə anbar hərəkəti və seçilmiş hesaba uyğun uçot avtomatik yaranır.'
                 : ''}
             </span>
           </div>
         </div>
         <div className="modal-actions">
+          {existing && (
+            <button
+              type="button"
+              className="button secondary"
+              onClick={() => setShowPostings(true)}
+            >
+              Dt/Kt
+            </button>
+          )}
           <button type="button" className="button secondary" onClick={onClose} disabled={busy}>
             Bağla
           </button>
@@ -346,6 +359,13 @@ export function InvoiceForm({
           </button>
         </div>
       </form>
+      {showPostings && existing && (
+        <InvoicePostings
+          state={state}
+          invoiceId={existing.id}
+          onClose={() => setShowPostings(false)}
+        />
+      )}
       {productEditor !== null && (
         <Modal
           title="Yeni nomenklatura"
