@@ -2437,3 +2437,28 @@ textarea,
   gap: 4px;
   flex-wrap: wrap;
 }
+
+/* Inventory and invoice lines retain the internal desktop workspace. */
+.inventory-panel{display:flex;flex:1;flex-direction:column;min-height:0;min-width:0;overflow:hidden;background:#fffdf7}
+.inventory-panel>.data-table{flex:1;min-height:0;border:0;border-radius:0}
+.inventory-toolbar{display:flex;align-items:center;gap:8px;padding:7px 10px;background:#f8f3e3;border-bottom:1px solid #d9d1bb;flex-shrink:0;flex-wrap:wrap}
+.inventory-toolbar strong{margin-right:auto;font-size:13px}
+.inventory-toolbar select,.inventory-search{width:auto;max-width:260px}
+.inventory-search{margin-left:auto}
+.inventory-note{padding:7px 10px;font-size:12px;color:#665f4f;background:#fcf9ef;flex-shrink:0}
+.invoice-items{margin-top:14px;border:1px solid #d2c9b1;border-radius:3px;overflow:hidden}
+.invoice-items-scroll{max-height:360px;overflow:auto}
+.invoice-items table{width:100%;border-collapse:collapse;min-width:1080px;table-layout:fixed;font-size:12px}
+.invoice-items th{background:#eee9dc;text-align:left;padding:7px 5px;border:1px solid #d9d1bd;position:sticky;top:0;z-index:1}
+.invoice-items td{padding:4px;border:1px solid #e1dac9;vertical-align:top}
+.invoice-items th:first-child{width:240px}
+.invoice-items th:nth-child(2){width:150px}
+.invoice-items th:nth-child(3){width:150px}
+.invoice-items th:last-child{width:40px}
+.invoice-items td input,.invoice-items td select{width:100%;min-width:0;padding:6px;font-size:12px;border-radius:2px}
+.invoice-items .input-action{gap:3px}
+.invoice-items .button{padding:6px;min-width:28px}
+.invoice-items .item-amount{text-align:right;padding-top:12px;font-variant-numeric:tabular-nums}
+.form-body input[readonly]{background:#f1ede1;color:#554d3b}
+.modal:has(.invoice-items){width:min(1180px,calc(100vw - 40px))}
+@media(max-width:1100px){.main-nav{gap:0}.main-nav>.nav-item,.main-nav .nav-dropdown>summary{padding-left:9px;padding-right:9px}}

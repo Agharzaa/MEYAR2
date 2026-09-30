@@ -162,7 +162,7 @@ app
       path.join(root, 'dist/main/electron/preload.cjs'),
     );
     manager.register();
-    manager.handle('meyar:version', () => '0.1.5-workspace-test');
+    manager.handle('meyar:version', () => '0.2.0-workspace-test');
     await mkdir(path.join(root, 'screenshots'), { recursive: true });
     window = await manager.create({ page: 'home', companyId: '' });
     await until(
@@ -277,6 +277,42 @@ app
       () => manager.create({ page: 'purchase', companyId }),
       /proqram daxilində/,
     );
+
+    // Itemized goods exercise the shipped renderer, IPC, SQLite and internal windows.
+    await company(companyId);
+    const productCommand={op:'product.save',companyId,product:{code:'WINDOWS-BOX',name:'Qutu ilə mal',group:'Test',barcode:'',baseUnitId:'pcs',purchaseUnitId:'box',factor:'12',category:'goods'}};
+    const productResult=await evaluate('window.meyar.call('+JSON.stringify(productCommand)+')');
+    await click('Gələn qaimələr',"document.querySelector('.main-nav')");
+    await pane('purchase');
+    await click('Əlavə et',active);
+    await pane('purchase','invoice');
+    await field('Qaimə nömrəsi','WINDOWS-GOODS');
+    await field('Kontragent',partnerId);
+    await field('Əməliyyatın növü','goods');
+    await until(active+".querySelector('[aria-label=\"Nomenklatura 1\"]')?.options.length>1");
+    async function itemField(label,value){
+      await evaluate('(()=>{const input='+active+'.querySelector('+JSON.stringify('[aria-label="'+label+'"]')+');const proto=input instanceof HTMLSelectElement?HTMLSelectElement.prototype:HTMLInputElement.prototype;Object.getOwnPropertyDescriptor(proto,"value").set.call(input,'+JSON.stringify(value)+');input.dispatchEvent(new Event(input instanceof HTMLSelectElement?"change":"input",{bubbles:true}));})()');
+    }
+    await itemField('Nomenklatura 1',productResult.id);
+    await itemField('Miqdar 1','2');
+    await itemField('Vahid qiyməti 1','120');
+    await itemField('Sətir ƏDV-si 1','43.20');
+    await until(active+".querySelector('.form-total').textContent.includes('283')");
+    assert.equal(await evaluate(active+".querySelector('[aria-label=\"Vahid 1\"]').value"),'box');
+    await writeFile(path.join(root,'screenshots/inventory-invoice.png'),(await window.webContents.capturePage()).toPNG());
+    await click('Yadda saxla',active);
+    await until("!document.querySelector('.internal-pane[data-form=invoice]')");
+    const inventoryState=store.snapshot(companyId,filter);
+    assert.equal(inventoryState.stock[0].quantity,'24');
+    assert.equal(inventoryState.stock[0].valueCents,24000);
+    assert.equal(inventoryState.invoices.find(i=>i.number==='WINDOWS-GOODS').items.length,1);
+    await click('Anbar',"document.querySelector('.main-nav')");
+    await pane('stock');
+    await until(active+".textContent.includes('Qutu ilə mal')");
+    results.stock=await layout('inventory-stock-1050',1050,700);
+    assert.equal(BrowserWindow.getAllWindows().length,1);
+    results.inventory={itemizedInvoice:true,packagingConversion:true,automaticPosting:true,oneNativeWindow:true};
+
     results.internalWindows = {
       oneNativeWindow: true,
       persistentDraft: true,

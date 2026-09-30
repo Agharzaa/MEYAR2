@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Check, Info, Plus } from 'lucide-react';
-import { cents, decimal } from '../core/money';
+import { cents, decimal, sum } from '../core/money';
 import type {
   Direction,
   Invoice,
@@ -9,7 +9,12 @@ import type {
   PaymentInput,
   State,
 } from '../shared/types';
-import { Field, money, today } from './components';
+import { Field, Modal, money, today } from './components';
+import {api} from './api';
+import {ProductForm} from './InventoryPages';
+import {InvoiceItems,emptyItem} from './InvoiceItems';
+import {lineAmount} from '../core/quantity';
+import type {InvoiceItemInput,ProductInput} from '../shared/inventory';
 export function InvoiceForm({
   state,
   direction,
@@ -32,6 +37,35 @@ export function InvoiceForm({
   onDirtyChange?: (dirty: boolean) => void;
 }) {
   const [vatError, setVatError] = useState('');
+  const [catalog,setCatalog]=useState<State|null>(null);
+  const [productEditor,setProductEditor]=useState<number|null>(null);
+  const [catalogBusy,setCatalogBusy]=useState(false);
+  const [catalogError,setCatalogError]=useState('');
+  const catalogState=catalog??state;
+  useEffect(()=>setCatalog(null),[state]);
+  function itemsTotal(items:InvoiceItemInput[]){
+    if(!items.length)throw new Error('Ən azı bir nomenklatura sətri əlavə edin.');
+    return {net:decimal(sum(...items.map(i=>lineAmount(i.quantity,i.unitPrice)))),vat:decimal(sum(...items.map(i=>cents(i.vat))))};
+  }
+  function updateItems(items:InvoiceItemInput[]){
+    onDirtyChange?.(true);
+    let totals={net:'',vat:'0.00'};
+    try{totals=itemsTotal(items);setVatError('');}catch{/* incomplete rows */}
+    set(s=>({...s,items,...totals}));
+  }
+  async function saveProduct(product:ProductInput){
+    if(catalogBusy||productEditor===null)return;
+    setCatalogBusy(true);setCatalogError('');
+    try{
+      const result=await api.call({op:'product.save',companyId:state.company.id,product}) as {id:string};
+      const next=await api.call({op:'state',companyId:state.company.id,filter:state.report}) as State;
+      const p=next.products.find(x=>x.id===result.id);
+      if(!p)throw new Error('Nomenklatura tapılmadı.');
+      setCatalog(next);
+      updateItems((v.items??[]).map((row,index)=>index===productEditor?{...row,productId:p.id,unitId:p.purchaseUnitId,category:direction==='sale'&&p.category==='asset'?'goods':p.category}:row));
+      setProductEditor(null);
+    }catch(e){setCatalogError((e as Error).message);}finally{setCatalogBusy(false);}
+  }
   const [v, set] = useState<InvoiceInput>(
     existing
       ? { ...existing, expectedVersion: existing.version }
@@ -52,7 +86,10 @@ export function InvoiceForm({
   }, [newPartnerId]);
   const field = <K extends keyof InvoiceInput>(key: K, value: InvoiceInput[K]) => {
     onDirtyChange?.(true);
-    set((s) => ({ ...s, [key]: value }));
+    if(key==='kind'){
+      const kind=value as InvoiceInput['kind'];
+      set(s=>({...s,kind,items:kind==='goods'?(s.items?.length?s.items:[emptyItem(catalogState)]):undefined,net:'',vat:'0.00'}));
+    }else set((s) => ({ ...s, [key]: value }));
   };
   let total = '—';
   try {
@@ -62,6 +99,10 @@ export function InvoiceForm({
   }
   function calcVat() {
     try {
+      if(v.kind==='goods'){
+        updateItems((v.items??[]).map(row=>({...row,vat:decimal(Number((BigInt(lineAmount(row.quantity,row.unitPrice))*18n+50n)/100n))})));
+        return;
+      }
       field('vat', decimal(Number((BigInt(cents(v.net)) * 18n + 50n) / 100n)));
       setVatError('');
     } catch {
@@ -69,11 +110,12 @@ export function InvoiceForm({
     }
   }
   return (
-    <form
+    <><form
       onSubmit={(e) => {
         e.preventDefault();
-        if (busy) return;
-        void onSave(v);
+        if (busy||catalogBusy) return;
+        try{void onSave(v.kind==='goods'?{...v,...itemsTotal(v.items??[])}:v);}
+        catch(e){setVatError((e as Error).message);}
       }}
     >
       <div className="form-body">
@@ -135,7 +177,7 @@ export function InvoiceForm({
               <option value="goods">Mal</option>
             </select>
           </Field>
-          <Field
+          {v.kind==='service'&&<Field
             label={
               direction === 'purchase' && v.kind === 'service'
                 ? 'Subkonto · 721'
@@ -155,13 +197,14 @@ export function InvoiceForm({
               onChange={(e) => field('subaccount', e.target.value)}
               placeholder="Subkonto adı"
             />
-          </Field>
+          </Field>}
           <Field label="Əsas məbləğ · AZN">
             <input
               disabled={busy}
               required
               inputMode="decimal"
               pattern="[0-9]+([.,][0-9]{1,2})?"
+              readOnly={v.kind==='goods'}
               value={v.net}
               onChange={(e) => field('net', e.target.value)}
               placeholder="0,00"
@@ -174,6 +217,7 @@ export function InvoiceForm({
                 required
                 inputMode="decimal"
                 pattern="[0-9]+([.,][0-9]{1,2})?"
+                readOnly={v.kind==='goods'}
                 value={v.vat}
                 onChange={(e) => field('vat', e.target.value)}
               />
@@ -199,6 +243,8 @@ export function InvoiceForm({
             />
           </Field>
         </div>
+        {v.kind==='goods'&&<InvoiceItems state={catalogState} items={v.items??[]} direction={direction} busy={busy||catalogBusy} onChange={updateItems} onProduct={index=>{setCatalogError('');setProductEditor(index);}}/>}
+        {existing?.kind==='goods'&&!existing.items?.length&&<p className="inventory-note">Əvvəlki qaimədə yalnız maliyyə məbləği var. Anbar uçotu üçün məhsul sətirlərini daxil edin.</p>}
         {vatError && <p role="alert">{vatError}</p>}
         <div className="form-total">
           <span>Qaimənin ümumi məbləği</span>
@@ -211,7 +257,7 @@ export function InvoiceForm({
           <span>
             Yadda saxlandıqda müxabirləşmə avtomatik yaranır. ƏDV məbləğini sənədə uyğun daxil edin.
             {v.kind === 'goods'
-              ? ' Bu mərhələdə malların yalnız maliyyə uçotu aparılır; anbar miqdarı və maya dəyəri ayrıca hazırlanacaq.'
+              ? ' Nomenklatura sətirləri üzrə anbar hərəkəti və kateqoriyaya uyğun uçot avtomatik yaranır.'
               : ''}
           </span>
         </div>
@@ -220,12 +266,16 @@ export function InvoiceForm({
         <button type="button" className="button secondary" onClick={onClose} disabled={busy}>
           Bağla
         </button>
-        <button className="button primary" disabled={busy || !state.partners.length}>
+        <button className="button primary" disabled={busy || catalogBusy || !state.partners.length}>
           <Check size={16} />
           {busy ? 'Saxlanılır…' : existing ? 'Düzəlişi saxla' : 'Yadda saxla'}
         </button>
       </div>
     </form>
+    {productEditor!==null&&<Modal title="Yeni nomenklatura" onClose={()=>{if(!catalogBusy)setProductEditor(null);}}>
+      {catalogError&&<p role="alert" className="message error">{catalogError}</p>}
+      <ProductForm state={catalogState} busy={catalogBusy} onSave={saveProduct} onClose={()=>setProductEditor(null)} onDirty={()=>onDirtyChange?.(true)}/>
+    </Modal>}</>
   );
 }
 export function PaymentForm({

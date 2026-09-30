@@ -13,9 +13,11 @@ export const windowPages = [
   'accounts',
   'audit',
   'settings',
+  'products', 'units', 'warehouses', 'stock', 'assets',
 ] as const;
 export type Page = (typeof windowPages)[number];
 export const windowTitles: Record<Page, string> = {
+  products:'Nomenklatura',units:'Ölçü vahidləri',warehouses:'Anbarlar',stock:'Anbar uçotu',assets:'Əsas vəsaitlər',
   home: 'İş masası',
   purchase: 'Gələn qaimələr',
   sale: 'Gedən qaimələr',

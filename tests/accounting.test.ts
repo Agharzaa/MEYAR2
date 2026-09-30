@@ -142,7 +142,8 @@ test('service purchases use 721 subkonto; goods use 205; no zero entries are emi
   const f = fixture(t);
   assert.throws(() => f.invoice({ direction: 'purchase', kind: 'service' }), /subkonto/);
   f.invoice({ direction: 'purchase', kind: 'service', subaccount: 'Rabitə' });
-  f.invoice({ number: 'GOODS-1', direction: 'purchase', kind: 'goods', net: '200', vat: '0' });
+  const productId=f.mutate({op:'product.save',companyId:f.companyId,product:{code:'MAL-1',name:'Test malı',group:'',barcode:'',baseUnitId:'pcs',purchaseUnitId:'pcs',factor:'1',category:'goods'}}).id!;
+  f.invoice({ number: 'GOODS-1', direction: 'purchase', kind: 'goods', net: '200', vat: '0',items:[{productId,warehouseId:f.state().warehouses[0].id,category:'goods',unitId:'pcs',quantity:'1',unitPrice:'200',vat:'0'}] });
   const s = f.state();
   balanced(s);
   assert.equal(s.balances[0].payable, 31800);

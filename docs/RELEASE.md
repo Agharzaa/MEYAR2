@@ -1,12 +1,17 @@
-Meyar ERP 2 — 0.1.5
+Meyar ERP 2 — 0.2.0
 
-- One Windows application window. Modules and invoice/payment editors open inside the application.
-- The main menu stays at the top; one bottom strip switches between open internal windows.
-- Internal windows can be minimized, restored, moved, resized and closed without opening another Windows taskbar window.
-- Open forms retain their fields while switching modules and companies. Each internal window stays tied to its original company.
-- Unsaved document close confirmation, automatic invoice posting and stale-edit protection remain active.
-- The filter/table workspace retains its 7:93 layout and classic accounting palette.
+- Nomenklatura kartları: kod, ad, qrup, barkod, əsas və alış vahidi.
+- Ədəd, litr, kq, metr, m², cüt, dəst, qutu və digər vahidlər. Qablaşdırma çevirməsi: məsələn, 1 qutu = 12 ədəd.
+- Mal qaiməsində çoxsaylı məhsul sətirləri; hər sətirdə mal, material və ya əsas vəsait kateqoriyası, anbar, miqdar, vahid, qiymət və ƏDV.
+- Qaimədən çıxmadan yeni nomenklatura yaratmaq.
+- Saxlamada avtomatik müxabirləşmə və anbar hərəkəti. Satışda orta çəkili maya dəyəri; mənfi qalığa yol verilmir.
+- Materialların ayrıca istifadəyə verilməsi və ləğvi.
+- Əsas vəsait alışında hər ədəd üçün inventar kartı; ayrıca istismara vermə, məsul şəxs, yer və faydalı istifadə müddəti.
+- Bir Windows pəncərəsi daxilində bölmələr və sənədlər; əvvəlki sarı-krem rənglər və 7:93 filtr/iş sahəsi saxlanılır.
 
-Close all older Meyar windows, download Meyar-ERP-2-Setup-0.1.5.exe and install.
-Existing accounting data stays in the same directory and is backed up before startup.
-This is an unsigned review build. Automatic updates are not enabled.
+Quraşdırma: əvvəlki Meyar pəncərələrini bağlayın və Meyar-ERP-2-Setup-0.2.0.exe faylını quraşdırın.
+Mövcud uçot bazası saxlanılır; yeni cədvəllər miqrasiya ilə əlavə edilir.
+Əvvəlki və cəmlərlə Excel-dən idxal edilən mal qaimələri maliyyə uçotunda qalır. Məhsul detalları olmadığından onlar üçün miqdar uydurulmur; anbar uçotu üçün qaiməni açıb sətirləri doldurun.
+Amortizasiya, anbarlararası transfer, qaytarma sənədləri, partiya/seriya uçotu, valyuta və DVX canlı inteqrasiyası bu versiyaya daxil deyil.
+
+Bu, sınaq üçün imzalanmamış Windows versiyasıdır. Avtomatik yenilənmə aktiv deyil.

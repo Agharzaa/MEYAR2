@@ -1,4 +1,7 @@
 export const accounts = [
+  ['111', 'Torpaq, tikili və avadanlıqların dəyəri'],
+  ['113', 'Torpaq, tikili və avadanlıqlarla bağlı məsrəflərin kapitallaşdırılması'],
+  ['201', 'Material ehtiyatları'],
   ['205', 'Mallar'],
   ['211', 'Alıcı və sifarişçilərin borcları'],
   ['221', 'Kassa'],

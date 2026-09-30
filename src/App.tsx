@@ -46,6 +46,7 @@ import type {
 } from '../shared/types';
 import { api } from './api';
 import type { Page, WindowContext, WindowBridge } from '../shared/windows';
+import {InventoryPanel,inventoryPages} from './InventoryPages';
 import { NativeWindowBar } from './NativeWindows';
 import {
   DataTable,
@@ -61,6 +62,11 @@ import {
 } from './components';
 import { IdentityForm, InvoiceForm, PaymentForm } from './forms';
 const pages: Record<Page, { title: string; icon: typeof Home; subtitle: string }> = {
+  products:{title:'Nomenklatura',icon:FolderOpen,subtitle:'Məhsul kartları, vahidlər və qablaşdırma çevirməsi'},
+  units:{title:'Ölçü vahidləri',icon:BookOpen,subtitle:'Ədəd, litr, cüt və digər vahidlər'},
+  warehouses:{title:'Anbarlar',icon:FolderOpen,subtitle:'Şirkətin anbar kitabçası'},
+  stock:{title:'Anbar uçotu',icon:FolderOpen,subtitle:'Nomenklatura üzrə miqdar və maya dəyəri'},
+  assets:{title:'Əsas vəsaitlər',icon:Building2,subtitle:'İnventar kartları və istismara vermə'},
   home: {
     title: 'İş masası',
     icon: Home,
@@ -213,7 +219,7 @@ export default function App({
     [loading, setLoading] = useState(true),
     [error, setError] = useState(''),
     [success, setSuccess] = useState(''),
-    [version, setVersion] = useState('0.1.5'),
+    [version, setVersion] = useState('0.2.0'),
     [reason, setReason] = useState(''),
     [closeDate, setCloseDate] = useState('');
   const activeWindow = windows[page] ?? initialWindow;
@@ -451,7 +457,8 @@ export default function App({
   const bankPage = page === 'bank-in' || page === 'bank-out';
   const reportPage = page === 'trial' || page === 'ledger';
   const partnerPage = ['partners', 'receivables', 'payables'].includes(page);
-  const showFilters = invoicePage || bankPage || reportPage || partnerPage;
+  const inventoryPage=inventoryPages.includes(page);
+  const showFilters = invoicePage || bankPage || reportPage || partnerPage || page==='stock';
   const matches = (s: string) =>
     s.toLocaleLowerCase('az').includes(search.toLocaleLowerCase('az').trim());
   const inPeriod = (d: string) =>
@@ -791,9 +798,10 @@ export default function App({
               </div>
             </details>
             {navigation('trial', 'Dövriyyə balansı')}
+            {navigation('stock','Anbar')}
             <details className="nav-dropdown">
               <summary
-                className={`nav-item ${['partners', 'receivables', 'payables', 'accounts'].includes(navigationPage ?? page) ? 'active' : ''}`}
+                className={`nav-item ${['partners', 'receivables', 'payables', 'accounts',...inventoryPages].includes(navigationPage ?? page) ? 'active' : ''}`}
               >
                 <FolderOpen size={17} />
                 Kitabçalar
@@ -805,6 +813,10 @@ export default function App({
                   (e.currentTarget.parentElement as HTMLDetailsElement).removeAttribute('open')
                 }
               >
+                {navigation('products')}
+                {navigation('units')}
+                {navigation('warehouses')}
+                {navigation('assets')}
                 {navigation('partners')}
                 {navigation('receivables')}
                 {navigation('payables')}
@@ -1353,6 +1365,7 @@ export default function App({
                   }
                 />
               )}
+              {inventoryPage&&<InventoryPanel state={state} page={page} busy={busy||loading} search={search} operationError={error} onSave={command=>mutate(command,'Əməliyyat saxlanıldı.')}/>}
               {page === 'accounts' && (
                 <DataTable
                   {...tableViewProps}
@@ -1486,11 +1499,11 @@ export default function App({
                     </div>
                     <div className="settings-body">
                       <p>
-                        İlkin işlək versiya: qaimələr, borc üzrə bank hesablaşmaları, DBC və
+                        Qaimələr, nomenklatura, anbar uçotu, əsas vəsait kartları, bank hesablaşmaları, DBC və
                         əməliyyat tarixçəsi.
                       </p>
                       <p className="muted">
-                        DVX canlı inteqrasiyası, anbar miqdarı və maya dəyəri, valyuta uçotu,
+                        DVX canlı inteqrasiyası, amortizasiya hesablanması, valyuta uçotu,
                         avanslar və vergi bəyannamələri növbəti mərhələlərdir.
                       </p>
                       <button
