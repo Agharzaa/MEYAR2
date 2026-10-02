@@ -349,7 +349,10 @@ app
       inventoryState.invoices.find((i) => i.number === 'WINDOWS-GOODS').items[0].account,
       '205',
     );
-    await evaluate('document.querySelector(\'[aria-label="Dt/Kt WINDOWS-GOODS"]\').click()');
+    // Closing a document returns to the last open pane, which may be another module.
+    await click('Gələn qaimələr', "document.querySelector('.main-nav')");
+    await pane('purchase');
+    await clickLabel('Dt/Kt WINDOWS-GOODS');
     await until("document.querySelector('dialog[open] .postings-table') !== null");
     await click('T-hesablar', "document.querySelector('dialog[open]')");
     await until('document.querySelector(\'[aria-label="T-hesab 205"]\') !== null');

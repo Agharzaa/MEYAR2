@@ -2587,6 +2587,11 @@ textarea,
   font-size: 12px;
 }
 .postings-table th,
+.postings-table tfoot {
+  position: static;
+  z-index: auto;
+}
+.postings-table th,
 .postings-table td {
   padding: 9px 10px;
   border: 1px solid #d9d5c6;
